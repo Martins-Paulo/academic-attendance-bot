@@ -33,6 +33,14 @@ import {
   X,
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
+import { ModalCriteria } from "@/components/modals/ModalCriteria";
+import { ModalEventList } from "@/components/modals/ModalEventList";
+import { ModalLimits } from "@/components/modals/ModalLimits";
+import { ModalEvent } from "@/components/modals/ModalEvent";
+import { ModalCourse } from "@/components/modals/ModalCourse";
+import { ModalAvatars } from "@/components/modals/ModalAvatars";
+import { ModalAttendance } from "@/components/modals/ModalAttendance";
+import { ModalProfile } from "@/components/modals/ModalProfile";
 
 type ButtonProps = {
   children: ReactNode;
@@ -331,7 +339,7 @@ function AvatarArtwork({ avatar }: { avatar: string }) {
   }
 }
 
-function AttendanceMood({ ratio, avatar = "diva" }: { ratio: number; avatar?: string }) {
+export function AttendanceMood({ ratio, avatar = "diva" }: { ratio: number; avatar?: string }) {
   const level: MoodLevel =
     ratio < 0.25 ? "confident" : ratio < 0.5 ? "happy" : ratio < 0.75 ? "worried" : "critical";
 
@@ -349,39 +357,6 @@ function AttendanceMood({ ratio, avatar = "diva" }: { ratio: number; avatar?: st
         </g>
       </svg>
     </span>
-  );
-}
-
-function Modal({
-  title,
-  children,
-  onClose,
-  wide = false,
-}: {
-  title: string;
-  children: ReactNode;
-  onClose: () => void;
-  wide?: boolean;
-}) {
-  return (
-    <div className="modal-backdrop" onMouseDown={onClose}>
-      <div
-        className={wide ? "modal modal--wide" : "modal"}
-        onMouseDown={(e) => e.stopPropagation()}
-        role="dialog"
-      >
-        <div className="modal__header">
-          <div>
-            <div className="eyebrow">UniGag</div>
-            <div className="modal__title">{title}</div>
-          </div>
-          <IconButton label="Fechar modal" onClick={onClose}>
-            <X size={20} />
-          </IconButton>
-        </div>
-        {children}
-      </div>
-    </div>
   );
 }
 
@@ -1605,656 +1580,107 @@ function Dashboard({
 
       {/* MODAL CONFIGURADOR DE CRITÉRIOS */}
       {modal === "criteria" && (
-        <Modal onClose={() => setModal(null)} title="Configurador de Critérios de Avaliação" wide>
-          <p className="modal__intro">
-            Escolha um modelo base ou ajuste os pesos e avaliações da matéria:
-          </p>
-
-          <div style={{ marginBottom: "16px" }}>
-            <span style={{ fontSize: "0.85rem", fontWeight: 700, display: "block", marginBottom: "8px" }}>
-              Modelos Base:
-            </span>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "10px" }}>
-              <button
-                type="button"
-                onClick={() => applyPreset("weighted")}
-                style={{
-                  padding: "12px",
-                  borderRadius: "8px",
-                  border: "1px solid var(--border)",
-                  background: "var(--card-bg, #fff)",
-                  textAlign: "left",
-                  cursor: "pointer",
-                }}
-              >
-                <strong style={{ fontSize: "0.88rem", display: "block" }}>Média Ponderada Livre</strong>
-                <small style={{ color: "var(--text-muted)", fontSize: "0.78rem" }}>
-                  Provas com pesos crescentes + Listas/Participação (ex: 20%, 30%, 40% + 10%)
-                </small>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => applyPreset("simple")}
-                style={{
-                  padding: "12px",
-                  borderRadius: "8px",
-                  border: "1px solid var(--border)",
-                  background: "var(--card-bg, #fff)",
-                  textAlign: "left",
-                  cursor: "pointer",
-                }}
-              >
-                <strong style={{ fontSize: "0.88rem", display: "block" }}>Média Simples (Aritmética)</strong>
-                <small style={{ color: "var(--text-muted)", fontSize: "0.78rem" }}>
-                  Provas com o mesmo peso (divisão igualitária de 33,3% por prova)
-                </small>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => applyPreset("theory_practice")}
-                style={{
-                  padding: "12px",
-                  borderRadius: "8px",
-                  border: "1px solid var(--border)",
-                  background: "var(--card-bg, #fff)",
-                  textAlign: "left",
-                  cursor: "pointer",
-                }}
-              >
-                <strong style={{ fontSize: "0.88rem", display: "block" }}>Teoria & Prática</strong>
-                <small style={{ color: "var(--text-muted)", fontSize: "0.78rem" }}>
-                  Divisão entre Provas Teóricas (60%) e Projetos/Laboratório (40%)
-                </small>
-              </button>
-            </div>
-          </div>
-
-          <div style={{ marginTop: "16px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-              <span style={{ fontSize: "0.85rem", fontWeight: 700 }}>Distribuição de Avaliações:</span>
-              <Button
-                variant="ghost"
-                onClick={() => {
-                  setEvaluations((curr) => [
-                    ...curr,
-                    {
-                      subject_id: selectedCalcCourseId || 1,
-                      name: `Avaliação ${curr.length + 1}`,
-                      category: "assignment",
-                      weight: "10",
-                      score: null,
-                    },
-                  ]);
-                }}
-              >
-                <Plus size={14} /> Adicionar Item
-              </Button>
-            </div>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              {evaluations.map((ev, index) => (
-                <div
-                  key={index}
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 140px 90px 40px",
-                    gap: "8px",
-                    alignItems: "center",
-                  }}
-                >
-                  <input
-                    style={{
-                      height: "38px",
-                      padding: "0 10px",
-                      borderRadius: "6px",
-                      border: "1px solid var(--border)",
-                      fontSize: "0.85rem",
-                    }}
-                    value={ev.name}
-                    onChange={(e) => {
-                      const name = e.target.value;
-                      setEvaluations((curr) => curr.map((it, idx) => (idx === index ? { ...it, name } : it)));
-                    }}
-                  />
-
-                  <select
-                    style={{
-                      height: "38px",
-                      padding: "0 8px",
-                      borderRadius: "6px",
-                      border: "1px solid var(--border)",
-                      fontSize: "0.82rem",
-                    }}
-                    value={ev.category}
-                    onChange={(e) => {
-                      const category = e.target.value as any;
-                      setEvaluations((curr) => curr.map((it, idx) => (idx === index ? { ...it, category } : it)));
-                    }}
-                  >
-                    <option value="exam">Prova</option>
-                    <option value="list">Lista de Exercícios</option>
-                    <option value="project">Projeto Prático</option>
-                    <option value="presentation">Apresentação</option>
-                    <option value="article">Artigo / Ensaio</option>
-                    <option value="assignment">Trabalho Geral</option>
-                  </select>
-
-                  <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      placeholder="0"
-                      style={{
-                        width: "55px",
-                        height: "38px",
-                        textAlign: "center",
-                        borderRadius: "6px",
-                        border: "1px solid var(--border)",
-                        fontSize: "0.85rem",
-                        fontWeight: 700,
-                      }}
-                      value={ev.weight === "" ? "" : String(ev.weight)}
-                      onChange={(e) => {
-                        const raw = e.target.value.replace(/[^0-9.,]/g, "");
-                        if (raw === "") {
-                          setEvaluations((curr) =>
-                            curr.map((it, idx) => (idx === index ? { ...it, weight: "" } : it))
-                          );
-                          return;
-                        }
-
-                        const num = parseFloat(raw.replace(",", "."));
-                        if (!isNaN(num) && num > 100) return;
-
-                        setEvaluations((curr) =>
-                          curr.map((it, idx) => (idx === index ? { ...it, weight: raw } : it))
-                        );
-                      }}
-                    />
-                    <span style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>%</span>
-                  </div>
-
-                  <IconButton
-                    label="Remover item"
-                    onClick={() => {
-                      setEvaluations((curr) => curr.filter((_, idx) => idx !== index));
-                    }}
-                  >
-                    <Trash2 size={16} />
-                  </IconButton>
-                </div>
-              ))}
-            </div>
-
-            <div
-              style={{
-                marginTop: "12px",
-                padding: "8px 12px",
-                borderRadius: "6px",
-                background: Math.abs(gradeSummary.totalWeight - 100) < 0.2 ? "rgba(46, 204, 113, 0.1)" : "rgba(235, 87, 87, 0.1)",
-                color: Math.abs(gradeSummary.totalWeight - 100) < 0.2 ? "var(--mint, #2ecc71)" : "var(--coral, #f26a5a)",
-                fontSize: "0.82rem",
-                fontWeight: 600,
-                display: "flex",
-                justifyContent: "space-between",
-              }}
-            >
-              <span>Soma dos Pesos:</span>
-              <span>
-                {gradeSummary.totalWeight.toFixed(1)}%{" "}
-                {Math.abs(gradeSummary.totalWeight - 100) < 0.2 ? "✓ (Correto: 100%)" : "(Atenção: deve somar 100%)"}
-              </span>
-            </div>
-          </div>
-
-          <div className="modal__actions" style={{ marginTop: "20px" }}>
-            <Button onClick={() => setModal(null)}>Cancelar</Button>
-            <Button onClick={handleSaveEvaluations} variant="primary">
-              <Check size={16} /> Salvar Critérios na Matéria
-            </Button>
-          </div>
-        </Modal>
+        <ModalCriteria
+          applyPreset={applyPreset}
+          evaluations={evaluations}
+          onClose={() => setModal(null)}
+          onSave={handleSaveEvaluations}
+          selectedCalcCourseId={selectedCalcCourseId}
+          setEvaluations={setEvaluations}
+          totalWeight={gradeSummary.totalWeight}
+        />
       )}
 
       {/* MODAL DO CARD 4: MENU DE TODOS OS ENTREGÁVEIS */}
       {modal === "event_list" && (
-        <Modal onClose={() => setModal(null)} title="Seus Trabalhos e Entregáveis" wide>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-            <p className="modal__intro" style={{ margin: 0 }}>
-              Acompanhe prazos, provas e trabalhos cadastrados no semestre.
-            </p>
-            <Button onClick={() => setModal("event")} variant="primary">
-              <Plus size={16} /> Nova Entrega
-            </Button>
-          </div>
-
-          {allEvents.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-muted)" }}>
-              <Clock3 size={32} style={{ margin: "0 auto 8px", opacity: 0.5 }} />
-              <p>Nenhuma entrega ou prova cadastrada ainda.</p>
-            </div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: "10px", maxHeight: "420px", overflowY: "auto", paddingRight: "4px" }}>
-              {allEvents.map((ev) => {
-                const course = courses.find((c) => c.id === ev.subject_id);
-                const isDone = !!ev.completed;
-                const formattedDate = ev.event_date ? new Date(ev.event_date).toLocaleDateString("pt-BR") : "Sem data";
-
-                return (
-                  <div
-                    key={ev.id}
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      padding: "12px 16px",
-                      borderRadius: "10px",
-                      background: isDone ? "rgba(46, 204, 113, 0.06)" : "var(--card-bg, #fcfcfc)",
-                      border: `1px solid ${isDone ? "rgba(46, 204, 113, 0.25)" : "var(--border)"}`,
-                      opacity: isDone ? 0.75 : 1,
-                      transition: "all 0.2s ease",
-                    }}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                      <button
-                        type="button"
-                        onClick={() => handleToggleEventStatus(ev.id, !isDone)}
-                        title={isDone ? "Reabrir como pendente" : "Marcar como concluído"}
-                        style={{
-                          width: "24px",
-                          height: "24px",
-                          borderRadius: "6px",
-                          border: isDone ? "none" : "2px solid var(--border)",
-                          background: isDone ? "var(--mint, #2ecc71)" : "transparent",
-                          color: "#fff",
-                          cursor: "pointer",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                        }}
-                      >
-                        {isDone && <Check size={14} strokeWidth={3} />}
-                      </button>
-
-                      <div>
-                        <strong style={{ textDecoration: isDone ? "line-through" : "none", fontSize: "0.95rem" }}>
-                          {ev.title}
-                        </strong>
-                        <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", display: "flex", gap: "8px", marginTop: "2px" }}>
-                          <span>{ev.type || "Trabalho"}</span>
-                          {course && <span>· {course.name}</span>}
-                          <span>· Data: {formattedDate}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                      <span
-                        style={{
-                          fontSize: "0.78rem",
-                          fontWeight: 700,
-                          padding: "4px 8px",
-                          borderRadius: "6px",
-                          background: isDone ? "rgba(46, 204, 113, 0.15)" : "rgba(242, 106, 90, 0.12)",
-                          color: isDone ? "var(--mint, #2ecc71)" : "var(--coral, #f26a5a)",
-                        }}
-                      >
-                        {isDone ? "Concluído" : "Pendente"}
-                      </span>
-                      <IconButton label="Excluir entrega" onClick={() => handleDeleteEvent(ev.id)}>
-                        <Trash2 size={16} />
-                      </IconButton>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          <div className="modal__actions" style={{ marginTop: "20px" }}>
-            <Button onClick={() => setModal(null)} variant="primary">Fechar</Button>
-          </div>
-        </Modal>
+        <ModalEventList
+          allEvents={allEvents}
+          courses={courses}
+          onClose={() => setModal(null)}
+          onDeleteEvent={handleDeleteEvent}
+          onNewEvent={() => setModal("event")}
+          onToggleEventStatus={handleToggleEventStatus}
+        />
       )}
 
       {/* Modal de Limite de Faltas */}
       {modal === "limits" && (
-        <Modal onClose={() => setModal(null)} title="Diagnóstico de Faltas">
-          <p className="modal__intro">
-            Acompanhe o saldo restante de faltas em cada disciplina antes de reprovar por frequência:
-          </p>
-          <div style={{ display: "flex", flexDirection: "column", gap: "10px", margin: "16px 0" }}>
-            {courses.map((c) => {
-              const remaining = Math.max(0, (c.limit || 16) - (c.absences || 0));
-              const isCrit = remaining <= 2;
-              return (
-                <div
-                  key={c.id}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    padding: "12px 16px",
-                    borderRadius: "10px",
-                    background: isCrit ? "rgba(235, 87, 87, 0.08)" : "var(--card-bg, #f9f9f9)",
-                    border: `1px solid ${isCrit ? "var(--coral)" : "var(--border)"}`,
-                  }}
-                >
-                  <div>
-                    <strong>{c.name}</strong>
-                    <div style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>
-                      {c.absences} faltas usadas de {c.limit} permitidas
-                    </div>
-                  </div>
-                  <span
-                    style={{
-                      fontWeight: 700,
-                      color: isCrit ? "var(--coral)" : "var(--mint)",
-                    }}
-                  >
-                    {remaining} restantes
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-          <div className="modal__actions">
-            <Button onClick={() => setModal(null)} variant="primary">Fechar</Button>
-          </div>
-        </Modal>
+        <ModalLimits
+          courses={courses}
+          onClose={() => setModal(null)}
+        />
       )}
 
       {/* Modal de Nova Entrega */}
       {modal === "event" && (
-        <Modal onClose={() => setModal(null)} title="Adicionar Nova Entrega ou Avaliação">
-          <form onSubmit={handleAddEvent}>
-            <p className="modal__intro">
-              Cadastre trabalhos, projetos, seminários ou provas com data limite.
-            </p>
-            <div className="form-grid">
-              <label className="form-grid__wide">
-                Título do Trabalho ou Prova *
-                <Input
-                  placeholder="Ex.: Projeto Prático de Banco de Dados"
-                  value={newEventTitle}
-                  onChange={setNewEventTitle}
-                />
-              </label>
-
-              <label>
-                Tipo de Avaliação
-                <select
-                  style={{
-                    width: "100%",
-                    height: "44px",
-                    borderRadius: "10px",
-                    border: "1px solid var(--border)",
-                    padding: "0 12px",
-                    background: "var(--card-bg, #fff)",
-                    fontSize: "0.92rem",
-                    color: "inherit",
-                  }}
-                  value={newEventType}
-                  onChange={(e) => setNewEventType(e.target.value)}
-                >
-                  <option value="Trabalho">Trabalho</option>
-                  <option value="Prova">Prova</option>
-                  <option value="Projeto">Projeto</option>
-                  <option value="Seminário">Seminário</option>
-                  <option value="Lista">Lista de Exercícios</option>
-                </select>
-              </label>
-
-              <label>
-                Data da Entrega *
-                <Input
-                  type="date"
-                  value={newEventDate}
-                  onChange={setNewEventDate}
-                />
-              </label>
-
-              <label className="form-grid__wide">
-                Disciplina Associada
-                <select
-                  style={{
-                    width: "100%",
-                    height: "44px",
-                    borderRadius: "10px",
-                    border: "1px solid var(--border)",
-                    padding: "0 12px",
-                    background: "var(--card-bg, #fff)",
-                    fontSize: "0.92rem",
-                    color: "inherit",
-                  }}
-                  value={newEventSubjectId}
-                  onChange={(e) => setNewEventSubjectId(e.target.value === "" ? "" : Number(e.target.value))}
-                >
-                  <option value="">Geral / Sem matéria específica</option>
-                  {courses.map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
-              </label>
-            </div>
-
-            <div className="modal__actions" style={{ marginTop: "24px" }}>
-              <Button onClick={() => setModal(null)}>Cancelar</Button>
-              <Button onClick={() => handleAddEvent()} variant="primary">
-                <Plus size={17} /> {isSavingEvent ? "Salvando..." : "Salvar Entrega"}
-              </Button>
-            </div>
-          </form>
-        </Modal>
+        <ModalEvent
+          courses={courses}
+          isSavingEvent={isSavingEvent}
+          newEventDate={newEventDate}
+          newEventSubjectId={newEventSubjectId}
+          newEventTitle={newEventTitle}
+          newEventType={newEventType}
+          onClose={() => setModal(null)}
+          onSubmit={handleAddEvent}
+          setNewEventDate={setNewEventDate}
+          setNewEventSubjectId={setNewEventSubjectId}
+          setNewEventTitle={setNewEventTitle}
+          setNewEventType={setNewEventType}
+        />
       )}
 
       {/* Modal de Nova Matéria */}
       {modal === "course" && (
-        <Modal onClose={() => setModal(null)} title="Cadastrar Nova Matéria">
-          <form onSubmit={handleAddCourse}>
-            <p className="modal__intro">
-              Adicione uma nova disciplina à sua grade. Os dados serão salvos no Supabase.
-            </p>
-            <div className="form-grid">
-              <label className="form-grid__wide">
-                Nome da Matéria *
-                <Input
-                  placeholder="Ex.: Inteligência Artificial"
-                  value={newCourseName}
-                  onChange={setNewCourseName}
-                />
-              </label>
-
-              <label>
-                Código da Matéria
-                <Input
-                  placeholder="Ex.: INF0320"
-                  value={newCourseCode}
-                  onChange={setNewCourseCode}
-                />
-              </label>
-
-              <label>
-                Personagem Inicial
-                <select
-                  style={{
-                    width: "100%",
-                    height: "44px",
-                    borderRadius: "10px",
-                    border: "1px solid var(--border)",
-                    padding: "0 12px",
-                    background: "var(--card-bg, #fff)",
-                    fontSize: "0.92rem",
-                    color: "inherit",
-                  }}
-                  value={newCourseAvatar}
-                  onChange={(e) => setNewCourseAvatar(e.target.value)}
-                >
-                  {courseAvatarStyles.map((style) => (
-                    <option key={style.id} value={style.id}>
-                      {style.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label>
-                Total de Aulas
-                <Input
-                  type="number"
-                  value={String(newCourseClasses)}
-                  onChange={(val) => {
-                    const classes = Number(val) || 0;
-                    setNewCourseClasses(classes);
-                    setNewCourseLimit(Math.round(classes * 0.25));
-                  }}
-                />
-              </label>
-
-              <label>
-                Limite de Faltas (25%)
-                <Input
-                  type="number"
-                  value={String(newCourseLimit)}
-                  onChange={(val) => setNewCourseLimit(Number(val) || 0)}
-                />
-              </label>
-            </div>
-
-            <div className="modal__actions" style={{ marginTop: "24px" }}>
-              <Button onClick={() => setModal(null)}>Cancelar</Button>
-              <Button onClick={() => handleAddCourse()} variant="primary">
-                <Plus size={17} /> {isSavingCourse ? "Salvando..." : "Adicionar Matéria"}
-              </Button>
-            </div>
-          </form>
-        </Modal>
+        <ModalCourse
+          isSavingCourse={isSavingCourse}
+          newCourseAvatar={newCourseAvatar}
+          newCourseClasses={newCourseClasses}
+          newCourseCode={newCourseCode}
+          newCourseLimit={newCourseLimit}
+          newCourseName={newCourseName}
+          onClose={() => setModal(null)}
+          onSubmit={handleAddCourse}
+          setNewCourseAvatar={setNewCourseAvatar}
+          setNewCourseClasses={setNewCourseClasses}
+          setNewCourseCode={setNewCourseCode}
+          setNewCourseLimit={setNewCourseLimit}
+          setNewCourseName={setNewCourseName}
+        />
       )}
 
       {/* Modal de Avatares das Disciplinas */}
       {modal === "avatars" && (
-        <Modal onClose={() => setModal(null)} title="Avatares das Matérias" wide>
-          <p className="modal__intro">
-            Escolha um personagem representativo para cada disciplina. Suas expressões reagem em tempo real à saúde da sua frequência acadêmica!
-          </p>
-
-          <div className="avatar-course-tabs" role="tablist">
-            {courses.map((course) => (
-              <button
-                key={course.id}
-                className={avatarCourseId === course.id ? "is-active" : ""}
-                onClick={() => setAvatarCourseId(course.id)}
-                type="button"
-              >
-                <span className={`course__code course__code--${course.color}`}>{course.code}</span>
-                {course.name}
-              </button>
-            ))}
-          </div>
-
-          <div className="avatar-style-heading">
-            <span>Personagem para:</span>
-            <strong>{courses.find((c) => c.id === avatarCourseId)?.name}</strong>
-          </div>
-
-          <div className="avatar-style-grid">
-            {courseAvatarStyles.map((style) => {
-              const selectedCourse = courses.find((c) => c.id === avatarCourseId);
-              const isSelected = selectedCourse?.avatar === style.id;
-              return (
-                <button
-                  key={style.id}
-                  className={isSelected ? "avatar-style-option is-selected" : "avatar-style-option"}
-                  onClick={() => {
-                    if (avatarCourseId) {
-                      selectAvatarForSubject(avatarCourseId, style.id);
-                    }
-                  }}
-                  type="button"
-                >
-                  <AttendanceMood avatar={style.id} ratio={0.15} />
-                  <span>{style.label}</span>
-                  {isSelected && <i><Check size={11} /></i>}
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="avatar-health-demo">
-            <span>Reação expressiva à sua frequência:</span>
-            <div>
-              <span><AttendanceMood avatar={courses.find((c) => c.id === avatarCourseId)?.avatar || "diva"} ratio={0.1} />Confiante</span>
-              <span><AttendanceMood avatar={courses.find((c) => c.id === avatarCourseId)?.avatar || "diva"} ratio={0.6} />Preocupada</span>
-              <span><AttendanceMood avatar={courses.find((c) => c.id === avatarCourseId)?.avatar || "diva"} ratio={0.9} />Crítica</span>
-            </div>
-          </div>
-
-          <div className="modal__actions">
-            <Button
-              onClick={() => {
-                setModal(null);
-                setToast("Avatares acadêmicos atualizados.");
-              }}
-              variant="primary"
-            >
-              <Check size={17} /> Salvar escolhas
-            </Button>
-          </div>
-        </Modal>
+        <ModalAvatars
+          avatarCourseId={avatarCourseId}
+          courses={courses}
+          onClose={() => setModal(null)}
+          onSave={() => {
+            setModal(null);
+            setToast("Avatares acadêmicos atualizados.");
+          }}
+          selectAvatarForSubject={selectAvatarForSubject}
+          setAvatarCourseId={setAvatarCourseId}
+        />
       )}
 
       {/* Modal de Registro de Aula */}
       {modal === "attendance" && (
-        <Modal onClose={() => setModal(null)} title="Registrar aula de hoje">
-          <p className="modal__intro">Selecione uma disciplina para marcar presença:</p>
-          <div className="modal__actions modal__actions--stack">
-            {courses.map((c) => (
-              <Button
-                key={c.id}
-                onClick={() => {
-                  updateAttendance(c.id, "present");
-                  setModal(null);
-                }}
-                variant="primary"
-              >
-                <Check size={18} /> Estive presente em {c.name}
-              </Button>
-            ))}
-          </div>
-        </Modal>
+        <ModalAttendance
+          courses={courses}
+          onClose={() => setModal(null)}
+          onPresent={(courseId) => updateAttendance(courseId, "present")}
+        />
       )}
 
       {/* Modal de Perfil */}
       {modal === "profile" && (
-        <Modal onClose={() => setModal(null)} title="Meu perfil">
-          <div className="profile-editor__preview">
-            <span className="profile-editor__avatar">{profileHealth}</span>
-            <span>
-              <strong>{profileName}</strong>
-              <small>{profileEducation}</small>
-            </span>
-          </div>
-          <div className="health-picker">
-            <div className="health-picker__grid">
-              {profileHealthOptions.map((item) => (
-                <button
-                  key={item.label}
-                  className={profileHealth === item.emoji ? "health-option is-selected" : "health-option"}
-                  onClick={() => setProfileHealth(item.emoji)}
-                  type="button"
-                >
-                  <span>{item.emoji}</span>
-                  <small>{item.label}</small>
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="modal__actions">
-            <Button onClick={() => setModal(null)} variant="primary">Fechar</Button>
-          </div>
-        </Modal>
+        <ModalProfile
+          onClose={() => setModal(null)}
+          profileEducation={profileEducation}
+          profileHealth={profileHealth}
+          profileName={profileName}
+          setProfileHealth={setProfileHealth}
+        />
       )}
     </div>
   );
