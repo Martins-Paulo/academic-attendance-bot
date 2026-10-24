@@ -1,0 +1,10 @@
+{
+  "name": "unigag-prototype",
+  "private": true,
+  "dependencies": {
+    "lucide-react": "^1.58.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "recharts": "^3.10.1"
+  }
+}

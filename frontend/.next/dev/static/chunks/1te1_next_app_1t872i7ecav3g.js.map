@@ -1,0 +1,6 @@
+{
+  "version": 3,
+  "sources": [],
+  "sections": [
+    {"offset": {"line": 3, "column": 0}, "map": {"version":3,"sources":["file:///home/paulo-cesar/Documentos/academic-attendance-bot/frontend/node_modules/.pnpm/next@16.4.0_@types+node@22.20.5_babel-plugin-macros@3.1.0_react-dom@19.2.1_react@19.2.1__react@19.2.1_sass@1.77.4/node_modules/next/app.js"],"sourcesContent":["module.exports = require('./dist/pages/_app')\n"],"names":["module","exports"],"mappings":"AAAAA,OAAOC,OAAO","ignoreList":[0]}}]
+}

@@ -1,0 +1,148 @@
+/**
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ *
+ * @flow strict
+ */
+
+export type {AutoFocusConfig} from '@lexical/extension/AutoFocusExtension';
+export {AutoFocusExtension} from '@lexical/extension/AutoFocusExtension';
+export type {ClearEditorConfig} from '@lexical/extension/ClearEditorExtension';
+export {
+  ClearEditorExtension,
+  registerClearEditor,
+} from '@lexical/extension/ClearEditorExtension';
+export type {
+  ClickAfterLastBlockConfig,
+  ClickAfterLastBlockOutput,
+} from '@lexical/extension/ClickAfterLastBlockExtension';
+export {
+  $defaultShouldInsertAfter,
+  ClickAfterLastBlockExtension,
+} from '@lexical/extension/ClickAfterLastBlockExtension';
+export type {KnownTypesAndNodes} from '@lexical/extension/config';
+export {getKnownTypesAndNodes} from '@lexical/extension/config';
+export type {SerializedDecoratorTextNode} from '@lexical/extension/DecoratorTextExtension';
+export {
+  $applyFormatToDom,
+  $isDecoratorTextNode,
+  applyFormatFromStyle,
+  applyFormatToDom,
+  DecoratorTextExtension,
+  DecoratorTextNode,
+} from '@lexical/extension/DecoratorTextExtension';
+export {EditorStateExtension} from '@lexical/extension/EditorStateExtension';
+export {
+  $getExtensionDependency,
+  $getExtensionOutput,
+  $getPeerDependency,
+} from '@lexical/extension/getExtensionDependency';
+export {getExtensionDependencyFromEditor} from '@lexical/extension/getExtensionDependencyFromEditor';
+export {
+  getPeerDependencyFromEditor,
+  getPeerDependencyFromEditorOrThrow,
+} from '@lexical/extension/getPeerDependencyFromEditor';
+export type {
+  HMRConfig,
+  HMROutput,
+  HotContext,
+} from '@lexical/extension/HMRExtension';
+export {HMRExtension} from '@lexical/extension/HMRExtension';
+export type {SerializedHorizontalRuleNode} from '@lexical/extension/HorizontalRuleExtension';
+export {
+  $createHorizontalRuleNode,
+  $isHorizontalRuleNode,
+  HorizontalRuleExtension,
+  HorizontalRuleNode,
+  INSERT_HORIZONTAL_RULE_COMMAND,
+} from '@lexical/extension/HorizontalRuleExtension';
+export {IMEExtension} from '@lexical/extension/IMEExtension';
+export type {InitialStateConfig} from '@lexical/extension/InitialStateExtension';
+export {InitialStateExtension} from '@lexical/extension/InitialStateExtension';
+export type {
+  FormatKeyboardShortcutOptions,
+  KeyboardShortcutsConfig,
+  NamedKeyboardShortcuts,
+} from '@lexical/extension/KeyboardShortcutsExtension';
+export {
+  formatKeyboardShortcut,
+  KeyboardShortcutsExtension,
+} from '@lexical/extension/KeyboardShortcutsExtension';
+export {
+  buildEditorFromExtensions,
+  LexicalBuilder,
+} from '@lexical/extension/LexicalBuilder';
+export type {
+  NamedSignalsOptions,
+  NamedSignalsOutput,
+} from '@lexical/extension/namedSignals';
+export {namedSignals} from '@lexical/extension/namedSignals';
+export {NestedEditorExtension} from '@lexical/extension/NestedEditorExtension';
+export type {NodeSelectionDataSelectedConfig} from '@lexical/extension/NodeSelectionDataSelectedExtension';
+export {NodeSelectionDataSelectedExtension} from '@lexical/extension/NodeSelectionDataSelectedExtension';
+export {NodeSelectionExtension} from '@lexical/extension/NodeSelectionExtension';
+export type {NormalizeInlineElementsConfig} from '@lexical/extension/NormalizeInlineElementsExtension';
+export {NormalizeInlineElementsExtension} from '@lexical/extension/NormalizeInlineElementsExtension';
+export type {
+  NormalizeTripleClickSelectionConfig,
+  NormalizeTripleClickSelectionOutput,
+} from '@lexical/extension/NormalizeTripleClickSelectionExtension';
+export {NormalizeTripleClickSelectionExtension} from '@lexical/extension/NormalizeTripleClickSelectionExtension';
+export type {PreventSelectAllConfig} from '@lexical/extension/PreventSelectAllExtension';
+export {PreventSelectAllExtension} from '@lexical/extension/PreventSelectAllExtension';
+export {RootElementExtension} from '@lexical/extension/RootElementExtension';
+export type {SelectBlockConfig} from '@lexical/extension/SelectBlockExtension';
+export {SelectBlockExtension} from '@lexical/extension/SelectBlockExtension';
+export {SelectionAlwaysOnDisplayExtension} from '@lexical/extension/SelectionAlwaysOnDisplayExtension';
+export type {ReadonlySignal, SignalOptions} from '@lexical/extension/signals';
+export {
+  batch,
+  computed,
+  effect,
+  Signal,
+  signal,
+  untracked,
+} from '@lexical/extension/signals';
+export type {
+  CanIndentPredicate,
+  TabIndentationConfig,
+} from '@lexical/extension/TabIndentationExtension';
+export {
+  registerTabIndentation,
+  TabIndentationExtension,
+} from '@lexical/extension/TabIndentationExtension';
+export {WatchEditableExtension} from '@lexical/extension/WatchEditableExtension';
+export {watchedSignal} from '@lexical/extension/watchedSignal';
+export type {
+  AnyLexicalExtension,
+  AnyLexicalExtensionArgument,
+  CompiledKeyboardShortcuts,
+  ExtensionConfigBase,
+  ExtensionRegisterState,
+  InitialEditorStateType,
+  KeyboardShortcut,
+  KeyboardShortcutMatch,
+  LexicalEditorWithDispose,
+  LexicalExtension,
+  LexicalExtensionArgument,
+  LexicalExtensionConfig,
+  LexicalExtensionDependency,
+  LexicalExtensionInit,
+  LexicalExtensionName,
+  LexicalExtensionOutput,
+  NormalizedLexicalExtensionArgument,
+  NormalizedPeerDependency,
+  OutputComponentExtension,
+} from 'lexical';
+export {
+  compileKeyboardShortcuts,
+  configExtension,
+  CONTROL_OR_ALT,
+  CONTROL_OR_META,
+  declarePeerDependency,
+  defineExtension,
+  safeCast,
+  shallowMergeConfig,
+} from 'lexical';

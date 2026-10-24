@@ -1,0 +1,9 @@
+{
+  "[project]/src/app/(frontend)/UniGagApp.tsx [app-client] (ecmascript, next/dynamic entry)": {
+    "id": "[project]/src/app/(frontend)/UniGagApp.tsx [app-client] (ecmascript, next/dynamic entry)",
+    "files": [
+      "static/chunks/src_0wtypzaqov4xz._.js",
+      "static/chunks/node_modules__pnpm_0rp4kifb9jvrn._.js"
+    ]
+  }
+}
