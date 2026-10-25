@@ -29,14 +29,17 @@ venv/
 env/
 */env/
 
-# Builds, Artefatos e Caches
+# Next.js build and Turbopack cache
 .next/
 */.next/
+frontend/.next/
 .turbo/
 dist/
 build/
 out/
 *.tsbuildinfo
+next-env.d.ts
+*.del
 .next/dev/
 .next/cache/
 
