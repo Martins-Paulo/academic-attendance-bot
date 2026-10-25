@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { X } from "lucide-react";
 
 export function Modal({
@@ -14,12 +14,27 @@ export function Modal({
   onClose: () => void;
   wide?: boolean;
 }) {
+  // Fechamento com tecla Escape
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
   return (
-    <div className="modal-backdrop" onMouseDown={onClose}>
+    <div
+      className="modal-backdrop"
+      onMouseDown={onClose}
+      aria-modal="true"
+      role="dialog"
+    >
       <div
         className={wide ? "modal modal--wide" : "modal"}
         onMouseDown={(e) => e.stopPropagation()}
-        role="dialog"
       >
         <div className="modal__header">
           <div>

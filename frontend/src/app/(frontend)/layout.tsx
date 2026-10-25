@@ -6,6 +6,7 @@ import {
   makeSiteSettings,
   sanitizeHtmlAttribute,
 } from "@/lib/make-site-settings"
+import { Providers } from "./providers"
 import "./styles.css"
 
 const defaultTitle = "UniGag - Gestor Acadêmico & Conexão Universitária"
@@ -66,7 +67,7 @@ export default function RootLayout({
           </a>
         )}
         <div id="root" tabIndex={-1}>
-          {children}
+          <Providers>{children}</Providers>
         </div>
         {googleAnalyticsId && (
           <>

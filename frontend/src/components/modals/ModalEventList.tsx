@@ -1,18 +1,20 @@
 "use client";
 
+import { useState } from "react";
 import { Check, Clock3, Plus, Trash2 } from "lucide-react";
 import { Modal } from "./Modal";
+import type { ModalBaseProps } from "@/types/modals";
 
-interface ModalEventListProps {
-  onClose: () => void;
+interface ModalEventListProps extends ModalBaseProps {
   onNewEvent: () => void;
   allEvents: any[];
-  courses: any[];
-  onToggleEventStatus: (eventId: number, completedState: boolean) => void;
-  onDeleteEvent: (eventId: number) => void;
+  courses: Array<{ id: number; name: string }>;
+  onToggleEventStatus: (eventId: number, completedState: boolean) => Promise<void> | void;
+  onDeleteEvent: (eventId: number) => Promise<void> | void;
 }
 
 export function ModalEventList({
+  isOpen,
   onClose,
   onNewEvent,
   allEvents,
@@ -20,13 +22,47 @@ export function ModalEventList({
   onToggleEventStatus,
   onDeleteEvent,
 }: ModalEventListProps) {
+  const [processingId, setProcessingId] = useState<number | null>(null);
+
+  if (!isOpen) return null;
+
+  const handleToggle = async (id: number, currentCompleted: boolean) => {
+    if (processingId !== null) return;
+    setProcessingId(id);
+    try {
+      await onToggleEventStatus(id, !currentCompleted);
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleDelete = async (id: number, title: string) => {
+    if (processingId !== null) return;
+    if (!window.confirm(`Tem certeza de que deseja remover a entrega "${title}"?`)) {
+      return;
+    }
+    setProcessingId(id);
+    try {
+      await onDeleteEvent(id);
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
   return (
     <Modal onClose={onClose} title="Seus Trabalhos e Entregáveis" wide>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
         <p className="modal__intro" style={{ margin: 0 }}>
           Acompanhe prazos, provas e trabalhos cadastrados no semestre.
         </p>
-        <button className="button button--primary" onClick={onNewEvent} type="button">
+        <button
+          className="button button--primary"
+          onClick={() => {
+            onClose();
+            onNewEvent();
+          }}
+          type="button"
+        >
           <Plus size={16} /> Nova Entrega
         </button>
       </div>
@@ -37,11 +73,23 @@ export function ModalEventList({
           <p>Nenhuma entrega ou prova cadastrada ainda.</p>
         </div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: "10px", maxHeight: "420px", overflowY: "auto", paddingRight: "4px" }}>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "10px",
+            maxHeight: "420px",
+            overflowY: "auto",
+            paddingRight: "4px",
+          }}
+        >
           {allEvents.map((ev) => {
             const course = courses.find((c) => c.id === ev.subject_id);
             const isDone = !!ev.completed;
-            const formattedDate = ev.event_date ? new Date(ev.event_date).toLocaleDateString("pt-BR") : "Sem data";
+            const isBusy = processingId === ev.id;
+            const formattedDate = ev.event_date
+              ? new Date(ev.event_date).toLocaleDateString("pt-BR")
+              : "Sem data";
 
             return (
               <div
@@ -60,9 +108,8 @@ export function ModalEventList({
               >
                 <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                   <button
-                    type="button"
-                    onClick={() => onToggleEventStatus(ev.id, !isDone)}
-                    title={isDone ? "Reabrir como pendente" : "Marcar como concluído"}
+                    disabled={isBusy}
+                    onClick={() => handleToggle(ev.id, isDone)}
                     style={{
                       width: "24px",
                       height: "24px",
@@ -70,11 +117,13 @@ export function ModalEventList({
                       border: isDone ? "none" : "2px solid var(--border)",
                       background: isDone ? "var(--mint, #2ecc71)" : "transparent",
                       color: "#fff",
-                      cursor: "pointer",
+                      cursor: isBusy ? "wait" : "pointer",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
                     }}
+                    title={isDone ? "Reabrir como pendente" : "Marcar como concluído"}
+                    type="button"
                   >
                     {isDone && <Check size={14} strokeWidth={3} />}
                   </button>
@@ -105,9 +154,10 @@ export function ModalEventList({
                     {isDone ? "Concluído" : "Pendente"}
                   </span>
                   <button
-                    aria-label="Excluir entrega"
+                    aria-label={`Excluir entrega ${ev.title}`}
                     className="icon-button"
-                    onClick={() => onDeleteEvent(ev.id)}
+                    disabled={isBusy}
+                    onClick={() => handleDelete(ev.id, ev.title)}
                     type="button"
                   >
                     <Trash2 size={16} />

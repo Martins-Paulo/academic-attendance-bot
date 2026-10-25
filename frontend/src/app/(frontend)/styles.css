@@ -1304,6 +1304,10 @@ button { color: inherit; }
 .auth-brand__mark span:nth-child(3) { animation-delay: -.2s; height: 19px; }
 .auth-brand__mark span:nth-child(4) { height: 13px; }
 .auth-brand__mark span:nth-child(5) { animation-delay: .2s; height: 8px; }
+@keyframes auth-bars {
+  0%, 100% { opacity: .75; transform: scaleY(.85); }
+  50% { opacity: 1; transform: scaleY(1.12); }
+}
 
 .auth-showcase__content {
   max-width: 570px;
@@ -1364,6 +1368,66 @@ button { color: inherit; }
   width: 23px;
 }
 
+.campus-scene {
+  flex: 1;
+  min-height: 210px;
+  position: relative;
+  z-index: 2;
+}
+.campus-emoji {
+  animation: campus-float 5s ease-in-out infinite;
+  filter: drop-shadow(0 10px 13px rgba(83, 39, 91, .2));
+  font-size: clamp(28px, 3.3vw, 48px);
+  position: absolute;
+  user-select: none;
+}
+.campus-emoji--books { bottom: 18%; left: 3%; transform: rotate(-10deg); }
+.campus-emoji--grad { animation-delay: -1.2s; bottom: 42%; left: 35%; }
+.campus-emoji--laptop { animation-delay: -2.7s; bottom: 15%; right: 8%; transform: rotate(7deg); }
+.campus-emoji--coffee { animation-delay: -3.8s; bottom: 55%; right: 4%; }
+@keyframes campus-float {
+  0%, 100% { translate: 0 0; }
+  50% { translate: 0 -10px; }
+}
+.campus-card {
+  align-items: center;
+  backdrop-filter: blur(12px);
+  background: rgba(255, 255, 255, .16);
+  border: 1px solid rgba(255, 255, 255, .22);
+  border-radius: 13px;
+  box-shadow: 0 15px 35px rgba(74, 37, 87, .15);
+  display: flex;
+  gap: 10px;
+  padding: 11px 13px;
+  position: absolute;
+}
+.campus-card--grade { bottom: 10%; left: 18%; }
+.campus-card--event { bottom: 35%; right: 13%; }
+.campus-card__icon {
+  align-items: center;
+  background: rgba(255, 255, 255, .2);
+  border-radius: 9px;
+  display: flex;
+  height: 32px;
+  justify-content: center;
+  width: 32px;
+}
+.campus-card > span:nth-child(2) { display: flex; flex-direction: column; }
+.campus-card small { color: rgba(255, 255, 255, .72); font-size: 10px; }
+.campus-card strong { font-size: 13px; }
+.campus-card--grade strong { font-size: 18px; }
+.campus-card__trend { background: rgba(127, 211, 154, .25); border-radius: 6px; color: #d5ffdf; font-size: 10px; font-weight: 800; padding: 3px 6px; }
+.auth-quote {
+  border-left: 2px solid rgba(255, 255, 255, .35);
+  margin-top: auto;
+  padding-left: 14px;
+  position: relative;
+  z-index: 2;
+}
+.auth-quote > span { color: #ffdc96; font-family: Georgia, serif; font-size: 30px; left: 12px; line-height: 1; position: absolute; top: -8px; }
+.auth-quote p { font-size: 12px; font-style: italic; margin: 0 0 3px 23px; }
+.auth-quote small { color: rgba(255, 255, 255, .7); font-size: 10px; margin-left: 23px; }
+
 .auth-form-side {
   align-items: center;
   background:
@@ -1379,6 +1443,8 @@ button { color: inherit; }
   position: relative;
 }
 .auth-mobile-brand { color: #654985; display: none; margin-bottom: 28px; }
+.auth-mobile-brand .auth-brand__mark { background: #f0e8f9; border-color: #e1d4ef; }
+.auth-mobile-brand .auth-brand__mark span { background: #8e68bc; }
 .auth-card { max-width: 440px; width: 100%; }
 .auth-card__intro { text-align: center; }
 .auth-welcome-emoji {
@@ -1441,6 +1507,102 @@ button { color: inherit; }
 }
 .auth-field input::placeholder { color: #b8abb9; }
 .auth-field button { background: transparent; border: 0; cursor: pointer; display: flex; padding: 3px; }
+.auth-form__grid { display: grid; gap: 12px; grid-template-columns: 1fr 1fr; }
+.auth-field--wide { grid-column: 1 / -1; }
+.auth-form__support, .auth-consent {
+  align-items: center;
+  color: #87798b;
+  display: flex;
+  font-size: 12px;
+  justify-content: space-between;
+}
+.auth-form__support label, .auth-consent { align-items: center; display: flex; gap: 6px; }
+.auth-form__support input, .auth-consent input { accent-color: #855dae; }
+.auth-form__support button, .auth-switch button {
+  background: transparent;
+  border: 0;
+  color: #7d56a5;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+}
+.auth-submit {
+  align-items: center;
+  animation: auth-gradient 7s ease infinite;
+  background: linear-gradient(95deg, #c8648d, #8658b0, #527fae, #5d9e7c, #c8648d);
+  background-size: 250% 100%;
+  border: 0;
+  border-radius: 10px;
+  box-shadow: 0 10px 25px rgba(126, 74, 156, .24);
+  color: white;
+  cursor: pointer;
+  display: flex;
+  font-size: 13px;
+  font-weight: 800;
+  justify-content: center;
+  margin-top: 6px;
+  padding: 13px 18px;
+  transition: transform 150ms ease;
+  width: 100%;
+}
+.auth-submit:hover:not(:disabled) { transform: translateY(-2px); }
+.auth-submit:disabled { opacity: 0.7; cursor: not-allowed; }
+.auth-submit svg { margin-left: 8px; }
+@keyframes auth-gradient {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+.auth-divider { align-items: center; color: #aa9fac; display: flex; font-size: 11px; gap: 10px; margin: 18px 0 12px; }
+.auth-divider::before, .auth-divider::after { background: #eadfe9; content: ""; flex: 1; height: 1px; }
+.auth-google {
+  align-items: center;
+  background: white;
+  border: 1px solid #eadfe9;
+  border-radius: 10px;
+  color: #514554;
+  cursor: pointer;
+  display: flex;
+  font-size: 13px;
+  font-weight: 700;
+  gap: 8px;
+  justify-content: center;
+  padding: 11px;
+  width: 100%;
+  transition: background 150ms ease, border-color 150ms ease;
+}
+.auth-google:hover { background: #fdfafd; border-color: #d8c9dc; }
+.auth-google > span { color: #4285f4; font-family: Arial, sans-serif; font-size: 16px; font-weight: 700; }
+.auth-switch { color: #978a99; font-size: 12px; margin: 16px 0 0; text-align: center; }
+.auth-switch button { margin-left: 6px; }
+.auth-footer { align-items: center; color: #9b8c9d; display: flex; font-size: 11px; gap: 9px; margin-top: 24px; justify-content: center; }
+.mini-pride { display: flex; gap: 2px; }
+.mini-pride i { border-radius: 2px; height: 4px; width: 9px; }
+.mini-pride i:nth-child(1) { background: #df7585; }
+.mini-pride i:nth-child(2) { background: #e3b85d; }
+.mini-pride i:nth-child(3) { background: #6cb48a; }
+.mini-pride i:nth-child(4) { background: #689ecb; }
+.mini-pride i:nth-child(5) { background: #936cbe; }
+.auth-orb { border-radius: 50%; filter: blur(2px); pointer-events: none; position: absolute; z-index: 3; }
+.auth-orb--one { background: rgba(255, 213, 126, .42); height: 18px; left: 48%; top: 12%; width: 18px; }
+.auth-orb--two { background: rgba(124, 212, 173, .36); height: 12px; left: 8%; top: 72%; width: 12px; }
+.auth-orb--three { background: rgba(137, 178, 230, .34); height: 22px; left: 44%; top: 55%; width: 22px; }
+
+@media (max-width: 900px) {
+  .auth-shell { display: block; }
+  .auth-showcase { display: none; }
+  .auth-form-side { min-height: 100vh; padding-bottom: 30px; padding-top: 30px; }
+  .auth-mobile-brand { display: flex; }
+  .auth-card { max-width: 470px; }
+}
+
+@media (max-width: 520px) {
+  .auth-form-side { justify-content: flex-start; padding: 24px 20px; }
+  .auth-mobile-brand { align-self: flex-start; margin-bottom: 36px; }
+  .auth-title { font-size: 21px; }
+  .auth-form__grid { grid-template-columns: 1fr; }
+  .auth-field--wide { grid-column: auto; }
+  .auth-footer { flex-direction: column; }
+}
 
 /* ========================================================
    SISTEMA DE ESCALA TIPOGRÁFICA E ACESSIBILIDADE - UNIGAG

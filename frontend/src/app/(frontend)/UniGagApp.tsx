@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useEffect, useCallback, type ReactNode } from "react";
+import { useMemo, useState, useEffect, useCallback, type ReactNode, type CSSProperties } from "react";
 import {
   AlertTriangle,
   ArrowRight,
@@ -31,8 +31,18 @@ import {
   UserRound,
   UsersRound,
   X,
+  LogIn,
+  LogOut,
+  ShieldCheck,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import { useModalController } from "@/hooks/useModalController";
+import type {
+  CriteriaModalPayload,
+  EventModalPayload,
+  AvatarsModalPayload,
+} from "@/types/modals";
 import { ModalCriteria } from "@/components/modals/ModalCriteria";
 import { ModalEventList } from "@/components/modals/ModalEventList";
 import { ModalLimits } from "@/components/modals/ModalLimits";
@@ -41,6 +51,8 @@ import { ModalCourse } from "@/components/modals/ModalCourse";
 import { ModalAvatars } from "@/components/modals/ModalAvatars";
 import { ModalAttendance } from "@/components/modals/ModalAttendance";
 import { ModalProfile } from "@/components/modals/ModalProfile";
+import { ModalAuth } from "@/components/modals/ModalAuth";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 
 type ButtonProps = {
   children: ReactNode;
@@ -48,6 +60,7 @@ type ButtonProps = {
   onClick?: () => void;
   variant?: "primary" | "secondary" | "ghost" | "danger";
   title?: string;
+  style?: CSSProperties;
 };
 
 export type CurrentStudent = {
@@ -85,11 +98,13 @@ function Button({
   onClick,
   variant = "ghost",
   title,
+  style,
 }: ButtonProps) {
   return (
     <button
       className={`button button--${variant} ${className}`}
       onClick={onClick}
+      style={style}
       title={title}
       type="button"
     >
@@ -387,26 +402,12 @@ function Dashboard({
   const [targetGrade, setTargetGrade] = useState("7.0");
   const [isSavingEvaluations, setIsSavingEvaluations] = useState(false);
 
-  // Formulário de Nova Matéria
-  const [newCourseName, setNewCourseName] = useState("");
-  const [newCourseCode, setNewCourseCode] = useState("");
-  const [newCourseClasses, setNewCourseClasses] = useState(64);
-  const [newCourseLimit, setNewCourseLimit] = useState(16);
-  const [newCourseAvatar, setNewCourseAvatar] = useState("diva");
-  const [isSavingCourse, setIsSavingCourse] = useState(false);
-
-  // Formulário de Nova Entrega
-  const [newEventTitle, setNewEventTitle] = useState("");
-  const [newEventType, setNewEventType] = useState("Trabalho");
-  const [newEventDate, setNewEventDate] = useState("");
-  const [newEventSubjectId, setNewEventSubjectId] = useState<number | "">("");
-  const [isSavingEvent, setIsSavingEvent] = useState(false);
+  const { activeModal, modalPayload, openModal, closeModal, isOpen } = useModalController();
 
   const [activeView, setActiveView] = useState<"dashboard" | "squad">(initialView);
   const [theme, setTheme] = useState<"light" | "dark" | "psa" | "pride">(initialTheme);
   const [themeMenuOpen, setThemeMenuOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [modal, setModal] = useState<string | null>(null);
   const [semester] = useState("2026.2");
   const [toast, setToast] = useState("");
   const [profileHealth, setProfileHealth] = useState("😎");
@@ -427,10 +428,47 @@ function Dashboard({
     }
   };
 
-  const profileName = currentStudent?.name || "Paulo Cesar";
-  const profileEducation = `UFG · ${currentStudent?.course || "Engenharia de Software"}`;
+  const router = useRouter();
+  const { user, student, signOut } = useAuth();
 
-  // Busca e sincronização com Supabase
+  const handleSignOut = async () => {
+    await signOut();
+    showToast("Sessão encerrada com sucesso.");
+    router.replace("/login");
+  };
+
+  const [customProfileName, setCustomProfileName] = useState<string>(
+    user
+      ? (student?.name || (user.user_metadata?.full_name as string) || "Estudante")
+      : (currentStudent?.name || "Paulo Cesar")
+  );
+  const [customProfileEducation, setCustomProfileEducation] = useState<string>(
+    user
+      ? (student?.course ? `UFG · ${student.course}` : "UniGag · Perfil Verificado")
+      : `UFG · ${currentStudent?.course || "Engenharia de Software"}`
+  );
+
+  useEffect(() => {
+    if (user) {
+      if (student?.name) setCustomProfileName(student.name);
+      setCustomProfileEducation(
+        student?.course ? `UFG · ${student.course}` : "UniGag · Perfil Verificado"
+      );
+    } else {
+      setCustomProfileName(currentStudent?.name || "Paulo Cesar");
+      setCustomProfileEducation(`UFG · ${currentStudent?.course || "Engenharia de Software"}`);
+    }
+  }, [user, student, currentStudent]);
+
+  const profileName = customProfileName;
+  const profileEducation = customProfileEducation;
+
+  const showToast = useCallback((msg: string) => {
+    setToast(msg);
+    window.setTimeout(() => setToast(""), 2600);
+  }, []);
+
+  // Busca e sincronização com Supabase (com isolamento estrito via RLS para usuário logado)
   const fetchSupabaseData = useCallback(async () => {
     try {
       const { data: dbSubjects } = await supabase.from("subjects").select("*");
@@ -446,10 +484,13 @@ function Dashboard({
         .select("*")
         .order("event_date", { ascending: true });
 
-      if (dbEvents) {
+      if (dbEvents && dbEvents.length > 0) {
         setAllEvents(dbEvents);
         const pending = dbEvents.filter((ev: any) => !ev.completed);
         setNextEvent(pending.length > 0 ? pending[0] : null);
+      } else {
+        setAllEvents([]);
+        setNextEvent(null);
       }
 
       if (dbSubjects && dbSubjects.length > 0) {
@@ -495,17 +536,21 @@ function Dashboard({
         if (formatted.length > 0 && !avatarCourseId) {
           setAvatarCourseId(formatted[0].id);
         }
+      } else {
+        // Usuário conectado sem matérias cadastradas
+        setCourses([]);
+        setSelectedCalcCourseId(null);
       }
     } catch (e) {
       console.error("Erro ao sincronizar com o Supabase:", e);
     } finally {
       setLoading(false);
     }
-  }, [avatarCourseId, selectedCalcCourseId]);
+  }, [avatarCourseId, selectedCalcCourseId, user]);
 
   useEffect(() => {
     fetchSupabaseData();
-  }, [fetchSupabaseData]);
+  }, [fetchSupabaseData, user?.id, student?.id]);
 
   // Carrega as avaliações da matéria selecionada
   const fetchSubjectEvaluations = useCallback(async (courseId: number) => {
@@ -544,34 +589,43 @@ function Dashboard({
     }
   }, [selectedCalcCourseId, fetchSubjectEvaluations]);
 
-  // Modelos Rápidos
-  const applyPreset = (presetType: "weighted" | "simple" | "theory_practice") => {
-    if (!selectedCalcCourseId) return;
+  // Sincronização reativa em tempo real via Supabase Realtime
+  useEffect(() => {
+    const channel = supabase
+      .channel("unigag-realtime-dashboard")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "attendances" },
+        () => fetchSupabaseData()
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "subjects" },
+        () => fetchSupabaseData()
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "subject_evaluations" },
+        () => {
+          fetchSupabaseData();
+          if (selectedCalcCourseId) fetchSubjectEvaluations(selectedCalcCourseId);
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "academic_events" },
+        () => fetchSupabaseData()
+      )
+      .subscribe();
 
-    if (presetType === "weighted") {
-      setEvaluations([
-        { subject_id: selectedCalcCourseId, name: "P1", category: "exam", weight: "20", score: null },
-        { subject_id: selectedCalcCourseId, name: "P2", category: "exam", weight: "30", score: null },
-        { subject_id: selectedCalcCourseId, name: "P3", category: "exam", weight: "40", score: null },
-        { subject_id: selectedCalcCourseId, name: "Listas / Atividades", category: "list", weight: "10", score: null },
-      ]);
-    } else if (presetType === "simple") {
-      setEvaluations([
-        { subject_id: selectedCalcCourseId, name: "P1", category: "exam", weight: "33,3", score: null },
-        { subject_id: selectedCalcCourseId, name: "P2", category: "exam", weight: "33,3", score: null },
-        { subject_id: selectedCalcCourseId, name: "P3", category: "exam", weight: "33,4", score: null },
-      ]);
-    } else if (presetType === "theory_practice") {
-      setEvaluations([
-        { subject_id: selectedCalcCourseId, name: "Provas Teóricas", category: "exam", weight: "60", score: null },
-        { subject_id: selectedCalcCourseId, name: "Projeto / Seminário", category: "project", weight: "40", score: null },
-      ]);
-    }
-  };
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [fetchSupabaseData, fetchSubjectEvaluations, selectedCalcCourseId]);
 
-  // Salva avaliações no Supabase tratando decimais com ponto
+  // Salva notas editadas inline na calculadora
   const handleSaveEvaluations = async () => {
-    if (!selectedCalcCourseId) return;
+    if (!selectedCalcCourseId || isSavingEvaluations) return;
 
     setIsSavingEvaluations(true);
     try {
@@ -596,17 +650,16 @@ function Dashboard({
       const { error } = await supabase.from("subject_evaluations").insert(payload);
 
       if (error) {
-        console.error("Erro ao salvar avaliações:", error);
-        alert(`Erro ao salvar: ${error.message}`);
+        console.error("Erro ao salvar avaliações:", error.message);
+        showToast("Erro ao sincronizar notas no Supabase.");
       } else {
-        setToast("Critérios e notas sincronizados no banco!");
-        window.setTimeout(() => setToast(""), 2600);
-        setModal(null);
+        showToast("Critérios e notas sincronizados no banco!");
         await fetchSupabaseData();
         await fetchSubjectEvaluations(selectedCalcCourseId);
       }
     } catch (err) {
-      console.error("Erro inesperado:", err);
+      console.error("Erro inesperado ao salvar notas:", err);
+      showToast("Erro de comunicação ao sincronizar notas.");
     } finally {
       setIsSavingEvaluations(false);
     }
@@ -751,94 +804,15 @@ function Dashboard({
     };
   }, [gradeFilter, selectedCalcCourseId, evaluations, allSubjectEvaluations, courses]);
 
-  const handleAddCourse = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!newCourseName.trim()) {
-      alert("Por favor, digite o nome da matéria.");
-      return;
-    }
-
-    setIsSavingCourse(true);
-    try {
-      const generatedCode = newCourseCode.trim()
-        ? newCourseCode.toUpperCase()
-        : `INF0${courses.length + 1}`;
-
-      const { data, error } = await supabase
-        .from("subjects")
-        .insert({
-          name: newCourseName.trim(),
-          code: generatedCode,
-          total_classes: Number(newCourseClasses) || 64,
-          max_absences: Number(newCourseLimit) || 16,
-        })
-        .select();
-
-      if (error) {
-        console.error("Erro ao cadastrar matéria:", error);
-        alert(`Erro ao salvar matéria: ${error.message}`);
-      } else {
-        if (data && data[0]?.id && typeof window !== "undefined") {
-          const currentSaved = JSON.parse(localStorage.getItem("unigag_subject_avatars") || "{}");
-          currentSaved[data[0].id] = newCourseAvatar;
-          localStorage.setItem("unigag_subject_avatars", JSON.stringify(currentSaved));
-        }
-
-        setNewCourseName("");
-        setNewCourseCode("");
-        setNewCourseClasses(64);
-        setNewCourseLimit(16);
-        setModal(null);
-        setToast("Nova disciplina adicionada com sucesso!");
-        window.setTimeout(() => setToast(""), 2600);
-
-        await fetchSupabaseData();
-      }
-    } catch (err) {
-      console.error("Erro inesperado:", err);
-    } finally {
-      setIsSavingCourse(false);
-    }
-  };
-
-  const handleAddEvent = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!newEventTitle.trim() || !newEventDate) {
-      alert("Preencha o título e a data de entrega.");
-      return;
-    }
-
-    setIsSavingEvent(true);
-    try {
-      const { error } = await supabase.from("academic_events").insert({
-        title: newEventTitle.trim(),
-        type: newEventType,
-        event_date: newEventDate,
-        subject_id: newEventSubjectId ? Number(newEventSubjectId) : null,
-        completed: false,
-      });
-
-      if (error) {
-        console.error("Erro ao cadastrar entrega:", error);
-        alert(`Erro ao salvar entrega: ${error.message}`);
-      } else {
-        setNewEventTitle("");
-        setNewEventDate("");
-        setNewEventType("Trabalho");
-        setNewEventSubjectId("");
-        setModal(null);
-        setToast("Nova entrega cadastrada com sucesso!");
-        window.setTimeout(() => setToast(""), 2600);
-        await fetchSupabaseData();
-      }
-    } catch (err) {
-      console.error("Erro inesperado ao salvar evento:", err);
-    } finally {
-      setIsSavingEvent(false);
-    }
-  };
-
   const handleToggleEventStatus = async (eventId: number, completedState: boolean) => {
+    // 1. Atualização otimista imediata na interface
+    setAllEvents((prev) => {
+      const updated = prev.map((ev) => (ev.id === eventId ? { ...ev, completed: completedState } : ev));
+      const pending = updated.filter((ev: any) => !ev.completed);
+      setNextEvent(pending.length > 0 ? pending[0] : null);
+      return updated;
+    });
+
     try {
       const { error } = await supabase
         .from("academic_events")
@@ -846,31 +820,43 @@ function Dashboard({
         .eq("id", eventId);
 
       if (error) {
-        console.error("Erro ao atualizar entrega:", error);
+        console.error("Erro ao atualizar entrega:", error.message);
+        showToast("Não foi possível atualizar a entrega.");
+        await fetchSupabaseData();
       } else {
-        setToast(completedState ? "Entrega marcada como concluída! 🎉" : "Entrega reaberta como pendente.");
-        window.setTimeout(() => setToast(""), 2600);
+        showToast(completedState ? "Entrega marcada como concluída! 🎉" : "Entrega reaberta como pendente.");
         await fetchSupabaseData();
       }
     } catch (err) {
-      console.error("Erro ao alternar status:", err);
+      console.error("Erro ao alternar status da entrega:", err);
+      showToast("Erro inesperado ao alterar status.");
+      await fetchSupabaseData();
     }
   };
 
   const handleDeleteEvent = async (eventId: number) => {
-    if (!confirm("Tem certeza que deseja excluir esta entrega?")) return;
+    // 1. Atualização otimista imediata na interface
+    setAllEvents((prev) => {
+      const updated = prev.filter((ev) => ev.id !== eventId);
+      const pending = updated.filter((ev: any) => !ev.completed);
+      setNextEvent(pending.length > 0 ? pending[0] : null);
+      return updated;
+    });
 
     try {
       const { error } = await supabase.from("academic_events").delete().eq("id", eventId);
       if (error) {
-        console.error("Erro ao excluir entrega:", error);
+        console.error("Erro ao excluir entrega:", error.message);
+        showToast("Não foi possível excluir a entrega.");
+        await fetchSupabaseData();
       } else {
-        setToast("Entrega removida com sucesso.");
-        window.setTimeout(() => setToast(""), 2600);
+        showToast("Entrega removida com sucesso.");
         await fetchSupabaseData();
       }
     } catch (err) {
       console.error("Erro inesperado ao excluir entrega:", err);
+      showToast("Erro de comunicação ao excluir entrega.");
+      await fetchSupabaseData();
     }
   };
 
@@ -918,6 +904,7 @@ function Dashboard({
   }, [courses]);
 
   const updateAttendance = async (id: number, kind: "present" | "absence" | "cancel") => {
+    // 1. Atualização otimista imediata
     setCourses((current) =>
       current.map((course) => {
         if (course.id !== id) return course;
@@ -927,17 +914,16 @@ function Dashboard({
       })
     );
 
-    setToast(
+    showToast(
       kind === "present"
         ? "Presença registrada com sucesso."
         : kind === "absence"
           ? "Falta registrada e salva no banco."
           : "Aula cancelada."
     );
-    window.setTimeout(() => setToast(""), 2600);
 
     try {
-      const studentId = currentStudent?.id || 1;
+      const studentId = (user && student?.id) ? student.id : (currentStudent?.id || 1);
       const dbStatus = kind === "present" ? "present" : kind === "absence" ? "absence" : "cancelled";
 
       const { error } = await supabase.from("attendances").insert({
@@ -947,9 +933,16 @@ function Dashboard({
         date: new Date().toISOString().split("T")[0],
       });
 
-      if (error) console.error("Erro ao gravar:", error);
+      if (error) {
+        console.error("Erro ao gravar presença:", error);
+        showToast("Erro ao sincronizar presença no banco.");
+        await fetchSupabaseData();
+      } else {
+        await fetchSupabaseData();
+      }
     } catch (err) {
       console.error("Erro ao conectar:", err);
+      await fetchSupabaseData();
     }
   };
 
@@ -974,19 +967,26 @@ function Dashboard({
           >
             <LayoutDashboard size={19} /> Visão geral
           </Button>
-          <Button className="nav__item" onClick={() => setModal("avatars")}>
+          <Button className="nav__item" onClick={() => openModal("AVATARS", { courseId: avatarCourseId })}>
             <Sparkles size={19} /> Avatares
           </Button>
-          <Button className="nav__item" onClick={() => setModal("course")}>
+          <Button className="nav__item" onClick={() => openModal("COURSE")}>
             <BookOpen size={19} /> Disciplinas
             <span className="nav__count">{courses.length}</span>
           </Button>
-          <Button className="nav__item" onClick={() => setModal("event_list")}>
+          <Button className="nav__item" onClick={() => openModal("EVENT_LIST")}>
             <CalendarDays size={19} /> Entregas e Calendário
           </Button>
           <div className="nav__label nav__label--spaced">SUA CONTA</div>
-          <Button className="nav__item" onClick={() => setModal("profile")}>
+          <Button className="nav__item" onClick={() => openModal("PROFILE")}>
             <UserRound size={19} /> Meu perfil
+          </Button>
+          <Button
+            className="nav__item"
+            onClick={handleSignOut}
+            title="Encerrar sessão e voltar ao login"
+          >
+            <LogOut size={19} /> Sair da conta
           </Button>
         </nav>
 
@@ -998,14 +998,23 @@ function Dashboard({
           </div>
         </div>
 
-        <button className="profile profile--button" onClick={() => setModal("profile")} type="button">
-          <div className="avatar" role="img">{profileHealth}</div>
-          <div className="profile__meta">
-            <strong>{profileName}</strong>
-            <span>{profileEducation}</span>
-          </div>
-          <MoreHorizontal size={18} />
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          <button className="profile profile--button" onClick={() => openModal("PROFILE")} type="button" style={{ flex: 1 }}>
+            <div className="avatar" role="img">{profileHealth}</div>
+            <div className="profile__meta">
+              <strong>{profileName}</strong>
+              <span>{profileEducation}</span>
+            </div>
+            <MoreHorizontal size={18} />
+          </button>
+          <IconButton
+            className="icon-button"
+            label="Sair da conta"
+            onClick={handleSignOut}
+          >
+            <LogOut size={17} />
+          </IconButton>
+        </div>
       </aside>
 
       {sidebarOpen && <div className="sidebar-shade" onClick={() => setSidebarOpen(false)} />}
@@ -1024,6 +1033,24 @@ function Dashboard({
             <kbd>⌘ K</kbd>
           </label>
           <div className="topbar__actions">
+            <div
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: "5px 12px",
+                borderRadius: "999px",
+                fontSize: "0.78rem",
+                fontWeight: 700,
+                backgroundColor: "rgba(46, 204, 113, 0.12)",
+                color: "#27ae60",
+                border: "1px solid rgba(46, 204, 113, 0.25)",
+              }}
+              title={`Conectado como ${user?.email || "estudante verificado"}`}
+            >
+              <span style={{ width: "7px", height: "7px", borderRadius: "50%", backgroundColor: "#27ae60" }} />
+              <span>Conectado</span>
+            </div>
             <button
               className="accessibility-btn"
               onClick={toggleTextScale}
@@ -1088,13 +1115,13 @@ function Dashboard({
               <div className="page-title">Bom dia, {profileName.split(" ")[0]}!</div>
               <p>Faltas e notas em sintonia com seu ritmo acadêmico.</p>
             </div>
-            <Button onClick={() => setModal("attendance")} variant="primary">
+            <Button onClick={() => openModal("ATTENDANCE")} variant="primary">
               <Check size={18} /> Registrar aula de hoje
             </Button>
           </section>
 
           {mostCriticalCourse && (
-            <button className="critical-alert" onClick={() => setModal("limits")} type="button">
+            <button className="critical-alert" onClick={() => openModal("LIMITS")} type="button">
               <span className="critical-alert__icon"><AlertTriangle size={19} /></span>
               <span>
                 <strong>Atenção com sua frequência em {mostCriticalCourse.name}</strong>
@@ -1135,7 +1162,7 @@ function Dashboard({
               }
               icon={<Check size={19} />}
               label="FREQUÊNCIA GERAL"
-              onClick={() => setModal("limits")}
+              onClick={() => openModal("LIMITS")}
             >
               <strong className="big-number">{displayedAttendance}%</strong>
               <span className="stat-copy">
@@ -1148,7 +1175,7 @@ function Dashboard({
               footer={mostCriticalCourse ? `${mostCriticalCourse.name} requer atenção` : "Frequência segura"}
               icon={<AlertTriangle size={19} />}
               label="LIMITE DE FALTAS"
-              onClick={() => setModal("limits")}
+              onClick={() => openModal("LIMITS")}
             >
               <strong className="big-number">{atRiskCourses.length}</strong>
               <span className="stat-copy">
@@ -1196,7 +1223,12 @@ function Dashboard({
                   ? "MÉDIA DO SEMESTRE"
                   : `MÉDIA: ${courses.find((c) => c.id === gradeFilter)?.name.toUpperCase() || "MATÉRIA"}`
               }
-              onClick={() => setModal("criteria")}
+              onClick={() =>
+                openModal("CRITERIA", {
+                  courseId: selectedCalcCourseId,
+                  courseName: courses.find((c) => c.id === selectedCalcCourseId)?.name,
+                })
+              }
             >
               <strong className="big-number">{displayedCardGrade.mainScore}</strong>
               <span className="stat-copy">{displayedCardGrade.subtitle}</span>
@@ -1204,7 +1236,7 @@ function Dashboard({
 
             <StatCard
               accent="coral"
-              onClick={() => setModal("event_list")}
+              onClick={() => openModal("EVENT_LIST")}
               footer={
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
                   <span>{nextEvent ? `Até ${new Date(nextEvent.event_date).toLocaleDateString('pt-BR')}` : "Tudo em dia!"}</span>
@@ -1212,7 +1244,7 @@ function Dashboard({
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      setModal("event");
+                      openModal("EVENT");
                     }}
                     style={{
                       background: "none",
@@ -1277,10 +1309,10 @@ function Dashboard({
                   <p>Avatares animados que expressam a saúde da sua presença</p>
                 </div>
                 <div className="panel__actions">
-                  <Button onClick={() => setModal("avatars")} variant="ghost">
+                  <Button onClick={() => openModal("AVATARS", { courseId: avatarCourseId })} variant="ghost">
                     <Sparkles size={17} /> Avatares
                   </Button>
-                  <Button onClick={() => setModal("course")} variant="secondary">
+                  <Button onClick={() => openModal("COURSE")} variant="secondary">
                     <Plus size={17} /> Nova matéria
                   </Button>
                 </div>
@@ -1306,7 +1338,7 @@ function Dashboard({
                             className="avatar-change-trigger"
                             onClick={() => {
                               setAvatarCourseId(course.id);
-                              setModal("avatars");
+                              openModal("AVATARS", { courseId: course.id });
                             }}
                             title="Clique para trocar este personagem"
                           >
@@ -1372,7 +1404,12 @@ function Dashboard({
                   </div>
                   <button
                     type="button"
-                    onClick={() => setModal("criteria")}
+                    onClick={() =>
+                      openModal("CRITERIA", {
+                        courseId: selectedCalcCourseId,
+                        courseName: courses.find((c) => c.id === selectedCalcCourseId)?.name,
+                      })
+                    }
                     title="Configurar fórmula e critérios"
                     style={{
                       background: "rgba(142, 68, 173, 0.12)",
@@ -1550,7 +1587,12 @@ function Dashboard({
                   </button>
                   <button
                     type="button"
-                    onClick={() => setModal("criteria")}
+                    onClick={() =>
+                      openModal("CRITERIA", {
+                        courseId: selectedCalcCourseId,
+                        courseName: courses.find((c) => c.id === selectedCalcCourseId)?.name,
+                      })
+                    }
                     style={{
                       height: "38px",
                       padding: "0 12px",
@@ -1578,110 +1620,119 @@ function Dashboard({
         </div>
       )}
 
-      {/* MODAL CONFIGURADOR DE CRITÉRIOS */}
-      {modal === "criteria" && (
-        <ModalCriteria
-          applyPreset={applyPreset}
-          evaluations={evaluations}
-          onClose={() => setModal(null)}
-          onSave={handleSaveEvaluations}
-          selectedCalcCourseId={selectedCalcCourseId}
-          setEvaluations={setEvaluations}
-          totalWeight={gradeSummary.totalWeight}
-        />
-      )}
+      {/* CENTRALIZED MODAL RENDERING */}
+      <ModalCriteria
+        isOpen={isOpen("CRITERIA")}
+        onClose={closeModal}
+        courseId={(modalPayload as CriteriaModalPayload)?.courseId ?? selectedCalcCourseId}
+        courseName={(modalPayload as CriteriaModalPayload)?.courseName ?? courses.find((c) => c.id === selectedCalcCourseId)?.name}
+        initialEvaluations={evaluations}
+        onSuccess={(msg) => {
+          showToast(msg || "Critérios salvos com sucesso!");
+          fetchSupabaseData();
+          if (selectedCalcCourseId) fetchSubjectEvaluations(selectedCalcCourseId);
+        }}
+      />
 
-      {/* MODAL DO CARD 4: MENU DE TODOS OS ENTREGÁVEIS */}
-      {modal === "event_list" && (
-        <ModalEventList
-          allEvents={allEvents}
-          courses={courses}
-          onClose={() => setModal(null)}
-          onDeleteEvent={handleDeleteEvent}
-          onNewEvent={() => setModal("event")}
-          onToggleEventStatus={handleToggleEventStatus}
-        />
-      )}
+      <ModalEventList
+        isOpen={isOpen("EVENT_LIST")}
+        onClose={closeModal}
+        onNewEvent={() => openModal("EVENT")}
+        allEvents={allEvents}
+        courses={courses}
+        onToggleEventStatus={handleToggleEventStatus}
+        onDeleteEvent={handleDeleteEvent}
+      />
 
-      {/* Modal de Limite de Faltas */}
-      {modal === "limits" && (
-        <ModalLimits
-          courses={courses}
-          onClose={() => setModal(null)}
-        />
-      )}
+      <ModalLimits
+        isOpen={isOpen("LIMITS")}
+        onClose={closeModal}
+        courses={courses}
+      />
 
-      {/* Modal de Nova Entrega */}
-      {modal === "event" && (
-        <ModalEvent
-          courses={courses}
-          isSavingEvent={isSavingEvent}
-          newEventDate={newEventDate}
-          newEventSubjectId={newEventSubjectId}
-          newEventTitle={newEventTitle}
-          newEventType={newEventType}
-          onClose={() => setModal(null)}
-          onSubmit={handleAddEvent}
-          setNewEventDate={setNewEventDate}
-          setNewEventSubjectId={setNewEventSubjectId}
-          setNewEventTitle={setNewEventTitle}
-          setNewEventType={setNewEventType}
-        />
-      )}
+      <ModalEvent
+        isOpen={isOpen("EVENT")}
+        onClose={closeModal}
+        courses={courses}
+        defaultSubjectId={(modalPayload as EventModalPayload)?.subjectId}
+        studentId={(user && student?.id) ? student.id : (currentStudent?.id || 1)}
+        onSuccess={(msg) => {
+          showToast(msg || "Entrega adicionada com sucesso!");
+          fetchSupabaseData();
+        }}
+      />
 
-      {/* Modal de Nova Matéria */}
-      {modal === "course" && (
-        <ModalCourse
-          isSavingCourse={isSavingCourse}
-          newCourseAvatar={newCourseAvatar}
-          newCourseClasses={newCourseClasses}
-          newCourseCode={newCourseCode}
-          newCourseLimit={newCourseLimit}
-          newCourseName={newCourseName}
-          onClose={() => setModal(null)}
-          onSubmit={handleAddCourse}
-          setNewCourseAvatar={setNewCourseAvatar}
-          setNewCourseClasses={setNewCourseClasses}
-          setNewCourseCode={setNewCourseCode}
-          setNewCourseLimit={setNewCourseLimit}
-          setNewCourseName={setNewCourseName}
-        />
-      )}
+      <ModalCourse
+        isOpen={isOpen("COURSE")}
+        onClose={closeModal}
+        currentCourseCount={courses.length}
+        studentId={(user && student?.id) ? student.id : (currentStudent?.id || 1)}
+        onSuccess={(msg) => {
+          showToast(msg || "Disciplina criada com sucesso!");
+          fetchSupabaseData();
+        }}
+      />
 
-      {/* Modal de Avatares das Disciplinas */}
-      {modal === "avatars" && (
-        <ModalAvatars
-          avatarCourseId={avatarCourseId}
-          courses={courses}
-          onClose={() => setModal(null)}
-          onSave={() => {
-            setModal(null);
-            setToast("Avatares acadêmicos atualizados.");
-          }}
-          selectAvatarForSubject={selectAvatarForSubject}
-          setAvatarCourseId={setAvatarCourseId}
-        />
-      )}
+      <ModalAvatars
+        isOpen={isOpen("AVATARS")}
+        onClose={closeModal}
+        courses={courses}
+        initialCourseId={(modalPayload as AvatarsModalPayload)?.courseId ?? avatarCourseId}
+        onUpdateAvatar={selectAvatarForSubject}
+        onSuccess={(msg) => {
+          showToast(msg || "Avatares acadêmicos atualizados!");
+        }}
+      />
 
-      {/* Modal de Registro de Aula */}
-      {modal === "attendance" && (
-        <ModalAttendance
-          courses={courses}
-          onClose={() => setModal(null)}
-          onPresent={(courseId) => updateAttendance(courseId, "present")}
-        />
-      )}
+      <ModalAttendance
+        isOpen={isOpen("ATTENDANCE")}
+        onClose={closeModal}
+        courses={courses}
+        studentId={(user && student?.id) ? student.id : (currentStudent?.id || 1)}
+        onSuccess={(msg, data) => {
+          showToast(msg || "Presença registrada com sucesso!");
+          if (data) {
+            setCourses((curr) =>
+              curr.map((c) => {
+                if (c.id === data.courseId) {
+                  return {
+                    ...c,
+                    presents: data.status === "present" ? (c.presents || 0) + 1 : c.presents,
+                    absences: data.status === "absence" ? (c.absences || 0) + 1 : c.absences,
+                  };
+                }
+                return c;
+              })
+            );
+          }
+          fetchSupabaseData();
+        }}
+      />
 
-      {/* Modal de Perfil */}
-      {modal === "profile" && (
-        <ModalProfile
-          onClose={() => setModal(null)}
-          profileEducation={profileEducation}
-          profileHealth={profileHealth}
-          profileName={profileName}
-          setProfileHealth={setProfileHealth}
-        />
-      )}
+      <ModalProfile
+        isOpen={isOpen("PROFILE")}
+        onClose={closeModal}
+        initialHealth={profileHealth}
+        initialName={profileName}
+        initialEducation={profileEducation}
+        onUpdateProfile={({ name, education, health }) => {
+          setProfileHealth(health);
+          setCustomProfileName(name);
+          setCustomProfileEducation(education);
+        }}
+        onSuccess={(msg) => {
+          showToast(msg || "Perfil acadêmico atualizado!");
+        }}
+      />
+
+      <ModalAuth
+        isOpen={isOpen("AUTH")}
+        onClose={closeModal}
+        onSuccess={(msg) => {
+          showToast(msg || "Autenticado com sucesso!");
+          fetchSupabaseData();
+        }}
+      />
     </div>
   );
 }
@@ -1696,9 +1747,11 @@ export default function App({
   dbNextEvent?: any;
 }) {
   return (
-    <Dashboard
-      currentStudent={currentStudent}
-      squadProfiles={squadProfiles}
-    />
+    <AuthProvider>
+      <Dashboard
+        currentStudent={currentStudent}
+        squadProfiles={squadProfiles}
+      />
+    </AuthProvider>
   );
 }
