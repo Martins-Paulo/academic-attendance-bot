@@ -10,6 +10,8 @@
 .env.development.local
 .env.test.local
 .env.production.local
+frontend/.env
+backend/.env
 
 # Dependências
 node_modules/
