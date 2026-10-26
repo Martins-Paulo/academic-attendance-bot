@@ -63,6 +63,11 @@ if [ ! -f "$PROJECT_ROOT/backend/.env" ]; then
     cp "$PROJECT_ROOT/backend/.env.example" "$PROJECT_ROOT/backend/.env" 2>/dev/null || true
 fi
 
+if [ ! -f "$PROJECT_ROOT/frontend/.env" ]; then
+    echo -e "${PREFIX_SYS} ${YELLOW}Aviso: frontend/.env não encontrado. Copiando do example...${RESET}"
+    cp "$PROJECT_ROOT/frontend/.env.example" "$PROJECT_ROOT/frontend/.env" 2>/dev/null || true
+fi
+
 # ------------------------------------------------------------------------------
 # 2. LIMPEZA PREVENTIVA DE PORTAS
 # ------------------------------------------------------------------------------

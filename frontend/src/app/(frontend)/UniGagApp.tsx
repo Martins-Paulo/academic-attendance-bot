@@ -429,7 +429,7 @@ function Dashboard({
   };
 
   const router = useRouter();
-  const { user, student, signOut } = useAuth();
+  const { user, student, signOut, refreshStudent } = useAuth();
 
   const handleSignOut = async () => {
     await signOut();
@@ -447,16 +447,21 @@ function Dashboard({
       ? (student?.course ? `UFG · ${student.course}` : "UniGag · Perfil Verificado")
       : `UFG · ${currentStudent?.course || "Engenharia de Software"}`
   );
+  const [customProfilePhone, setCustomProfilePhone] = useState<string>(
+    student?.phone || ""
+  );
 
   useEffect(() => {
     if (user) {
       if (student?.name) setCustomProfileName(student.name);
+      if (student?.phone) setCustomProfilePhone(student.phone);
       setCustomProfileEducation(
         student?.course ? `UFG · ${student.course}` : "UniGag · Perfil Verificado"
       );
     } else {
       setCustomProfileName(currentStudent?.name || "Paulo Cesar");
       setCustomProfileEducation(`UFG · ${currentStudent?.course || "Engenharia de Software"}`);
+      setCustomProfilePhone("");
     }
   }, [user, student, currentStudent]);
 
@@ -1715,10 +1720,24 @@ function Dashboard({
         initialHealth={profileHealth}
         initialName={profileName}
         initialEducation={profileEducation}
-        onUpdateProfile={({ name, education, health }) => {
+        initialPhone={customProfilePhone}
+        onUpdateProfile={async ({ name, education, health, phone }) => {
           setProfileHealth(health);
           setCustomProfileName(name);
           setCustomProfileEducation(education);
+          if (phone !== undefined) setCustomProfilePhone(phone);
+
+          if (student?.id) {
+            try {
+              await supabase
+                .from("students")
+                .update({ name, phone: phone || null })
+                .eq("id", student.id);
+              await refreshStudent();
+            } catch (err) {
+              console.warn("⚠️ Aviso ao sincronizar perfil com o Supabase:", err);
+            }
+          }
         }}
         onSuccess={(msg) => {
           showToast(msg || "Perfil acadêmico atualizado!");

@@ -16,16 +16,27 @@ class BotDispatcher:
         self,
         phone: str,
         message_text: str,
-        student_id: int = settings.DEFAULT_STUDENT_ID
+        student_id: Optional[int] = None
     ) -> str:
         """
         Processa uma mensagem recebida de um estudante e retorna a resposta formatada.
+        Identifica dinamicamente o aluno pelo telefone do remetente, com fallback seguro para config.
         """
         if not message_text or not message_text.strip():
             return "Olá! Envie uma mensagem para registrar presença ou consultar suas matérias."
 
+        # Identifica dinamicamente o aluno pelo número de telefone cadastrado
+        effective_student_id = student_id or settings.DEFAULT_STUDENT_ID
+        try:
+            if phone:
+                student = supabase_service.get_student_by_phone(phone)
+                if student and student.get("id"):
+                    effective_student_id = student["id"]
+        except Exception as lookup_err:
+            print(f"⚠️ Erro ao consultar estudante pelo telefone '{phone}': {lookup_err}")
+
         # 1. Recupera lista de disciplinas ativas do aluno
-        subjects = supabase_service.get_student_subjects(student_id)
+        subjects = supabase_service.get_student_subjects(effective_student_id)
         subject_names = [sub.get("name", "") for sub in subjects if sub.get("name")]
 
         # 2. Interpreta a intenção usando Gemini (ou fallback heurístico)
@@ -36,19 +47,19 @@ class BotDispatcher:
             return await self._handle_attendance_registration(
                 parsed.subject_name or message_text,
                 parsed.status or "present",
-                student_id,
+                effective_student_id,
                 subjects
             )
 
         elif parsed.intent == "CHECK_LIMITS":
             return await self._handle_check_limits(
                 parsed.subject_name,
-                student_id,
+                effective_student_id,
                 subjects
             )
 
         elif parsed.intent == "CHECK_EVENTS":
-            return await self._handle_check_events(student_id)
+            return await self._handle_check_events(effective_student_id)
 
         elif parsed.intent == "CHECK_SCHEDULE":
             return await self._handle_check_schedule(subjects)
@@ -114,6 +125,13 @@ class BotDispatcher:
                     f"📊 *Frequência atual:* {margin['attendance_rate']}%\n"
                     f"⚠️ *Faltas:* {margin['absences_count']} de {margin['max_absences']} permitidas ({margin['remaining_absences']} restantes).{alert}\n\n"
                     "O registro foi sincronizado com seu dashboard."
+                )
+            elif status == "justified":
+                return (
+                    f"📝 *Falta justificada registrada* para *{subject_name}*! 📄\n\n"
+                    f"📚 *Disciplina:* {subject_name}\n"
+                    f"📊 *Frequência atual:* {margin['attendance_rate']}%\n"
+                    "A ausência foi registrada como justificada e não penaliza seu limite de faltas."
                 )
             else:
                 return (

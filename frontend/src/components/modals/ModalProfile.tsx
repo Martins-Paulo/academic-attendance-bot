@@ -29,13 +29,20 @@ const profileSchema = z.object({
     .min(2, "Curso/Faculdade deve conter ao menos 2 caracteres.")
     .max(100, "Descrição de formação muito longa.")
     .regex(/^[^<>%$]*$/, "Caracteres inválidos detectados."),
+  phone: z
+    .string()
+    .trim()
+    .max(25, "Telefone muito longo.")
+    .optional()
+    .or(z.literal("")),
 });
 
 interface ModalProfileProps extends ModalBaseProps {
   initialHealth: string;
   initialName: string;
   initialEducation: string;
-  onUpdateProfile: (data: { name: string; education: string; health: string }) => void;
+  initialPhone?: string;
+  onUpdateProfile: (data: { name: string; education: string; health: string; phone?: string }) => void;
 }
 
 export function ModalProfile({
@@ -45,11 +52,13 @@ export function ModalProfile({
   initialHealth,
   initialName,
   initialEducation,
+  initialPhone = "",
   onUpdateProfile,
 }: ModalProfileProps) {
   const [health, setHealth] = useState(initialHealth);
   const [name, setName] = useState(initialName);
   const [education, setEducation] = useState(initialEducation);
+  const [phone, setPhone] = useState(initialPhone);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -57,15 +66,16 @@ export function ModalProfile({
       setHealth(initialHealth);
       setName(initialName);
       setEducation(initialEducation);
+      setPhone(initialPhone || "");
       setErrors({});
     }
-  }, [isOpen, initialHealth, initialName, initialEducation]);
+  }, [isOpen, initialHealth, initialName, initialEducation, initialPhone]);
 
   if (!isOpen) return null;
 
   const handleSave = () => {
     setErrors({});
-    const validation = profileSchema.safeParse({ health, name, education });
+    const validation = profileSchema.safeParse({ health, name, education, phone });
 
     if (!validation.success) {
       const fieldErrors: Record<string, string> = {};
@@ -130,6 +140,30 @@ export function ModalProfile({
             <span style={{ color: "var(--coral, #eb5757)", fontSize: "0.78rem" }}>{errors.education}</span>
           )}
         </label>
+      </div>
+
+      <div style={{ marginTop: "12px" }}>
+        <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 700, marginBottom: "4px" }}>
+          WhatsApp / Telefone (Integração Bot UniGag):
+          <input
+            className={`field ${errors.phone ? "is-invalid" : ""}`}
+            maxLength={25}
+            placeholder="(DD) 99999-9999 ou 5511999998888"
+            onChange={(e) => {
+              setPhone(e.target.value);
+              if (errors.phone) setErrors((prev) => ({ ...prev, phone: "" }));
+            }}
+            style={{ marginTop: "4px" }}
+            type="tel"
+            value={phone}
+          />
+          {errors.phone && (
+            <span style={{ color: "var(--coral, #eb5757)", fontSize: "0.78rem" }}>{errors.phone}</span>
+          )}
+        </label>
+        <span style={{ fontSize: "0.75rem", color: "var(--muted, #828282)" }}>
+          📱 Usado pelo Bot do WhatsApp para identificação automática e confirmação de presença.
+        </span>
       </div>
 
       <div className="health-picker" style={{ marginTop: "16px" }}>

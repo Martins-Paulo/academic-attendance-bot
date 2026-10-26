@@ -77,6 +77,7 @@ export interface StudentProfile {
   user_id: string;
   name: string;
   email?: string | null;
+  phone?: string | null;
   course?: string | null;
   semester?: number | null;
   avatar?: string | null;
