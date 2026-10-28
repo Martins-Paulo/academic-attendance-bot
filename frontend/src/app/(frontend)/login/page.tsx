@@ -140,9 +140,11 @@ export default function LoginPage() {
           router.push("/");
         }
       } else {
+        console.error("[UniGag Login] Erro no cadastro:", result.error);
         setGeneralError(result.error || "Não foi possível criar sua conta.");
       }
-    } catch {
+    } catch (err) {
+      console.error("[UniGag Login] Exceção inesperada no handleRegister:", err);
       setGeneralError("Falha na comunicação com o servidor.");
     } finally {
       setIsSubmitting(false);

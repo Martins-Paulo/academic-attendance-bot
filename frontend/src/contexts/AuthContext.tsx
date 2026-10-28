@@ -29,14 +29,29 @@ function sanitizeAuthError(rawMessage?: string): string {
   if (msg.includes("email not confirmed")) {
     return "E-mail ainda não confirmado. Verifique sua caixa de entrada.";
   }
-  if (msg.includes("rate limit") || msg.includes("too many requests")) {
-    return "Muitas tentativas em sequência. Aguarde alguns instantes.";
+  if (
+    msg.includes("rate limit") ||
+    msg.includes("too many requests") ||
+    msg.includes("over_email_send_rate_limit")
+  ) {
+    return "Limite de envio de e-mails atingido no momento pelo provedor de autenticação. Por favor, aguarde alguns instantes antes de tentar novamente.";
   }
-  if (msg.includes("password should be")) {
-    return "A senha fornecida não atende aos requisitos mínimos de segurança.";
+  if (
+    msg.includes("password should be") ||
+    msg.includes("password should have") ||
+    msg.includes("weak_password")
+  ) {
+    return "A senha fornecida não atende aos requisitos de segurança do servidor.";
+  }
+  if (msg.includes("database error") || msg.includes("error saving new user")) {
+    return "Erro no banco de dados ao inicializar seu perfil de estudante. Contate o suporte técnico.";
+  }
+  if (msg.includes("signups not allowed") || msg.includes("signups are disabled")) {
+    return "Cadastros de novos usuários estão desativados temporariamente.";
   }
 
-  return "Não foi possível concluir a autenticação. Verifique os dados.";
+  // Retorna a mensagem original detalhada se não for um dos casos acima
+  return rawMessage;
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -68,6 +83,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await new Promise((resolve) => setTimeout(resolve, 500));
       }
     }
+
+    // Fallback de Auto-provisionamento: caso a trigger do banco não tenha sido executada
+    try {
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (currentUser && currentUser.id === userId) {
+        const studentName =
+          currentUser.user_metadata?.full_name ||
+          currentUser.user_metadata?.name ||
+          currentUser.email?.split("@")[0] ||
+          "Estudante";
+
+        const { data: createdProfile, error: insertError } = await supabase
+          .from("students")
+          .insert({
+            user_id: userId,
+            name: studentName,
+            email: currentUser.email,
+            course: "Engenharia de Software",
+            semester: 1,
+            avatar: "neutral"
+          })
+          .select("id, user_id, name, email, phone, course, semester, avatar, created_at")
+          .maybeSingle();
+
+        if (createdProfile) {
+          console.log("[UniGag Auth] Perfil de estudante criado com sucesso via auto-provisionamento:", createdProfile);
+          return createdProfile as StudentProfile;
+        }
+
+        if (insertError) {
+          console.warn("[UniGag Auth] Falha ao criar perfil via auto-provisionamento:", insertError.message);
+        }
+      }
+    } catch (fallbackErr) {
+      console.warn("[UniGag Auth] Erro inesperado no auto-provisionamento do perfil:", fallbackErr);
+    }
+
     return null;
   }, []);
 
@@ -159,18 +211,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Cadastro de novo usuário
   const signUp = useCallback(async (data: RegisterFormData) => {
     try {
+      console.log("[UniGag Auth] Iniciando cadastro para:", data.email);
       const { data: authData, error } = await supabase.auth.signUp({
         email: data.email,
         password: data.password,
         options: {
           data: {
             full_name: data.fullName,
+            name: data.fullName,
           },
         },
       });
 
       if (error) {
+        console.error("[UniGag Auth] Erro no cadastro (Supabase Auth API):", error);
         return { success: false, error: sanitizeAuthError(error.message) };
+      }
+
+      console.log("[UniGag Auth] Resposta do signUp com sucesso:", {
+        userId: authData.user?.id,
+        hasSession: !!authData.session,
+        identitiesCount: authData.user?.identities?.length
+      });
+
+      // Se o usuário já existia previamente e email confirmation está ativo no Supabase,
+      // a API do Supabase não retorna erro, mas retorna identities vazio.
+      if (authData.user && Array.isArray(authData.user.identities) && authData.user.identities.length === 0) {
+        console.warn("[UniGag Auth] Usuário com e-mail já registrado detectado via identities vazias:", data.email);
+        return {
+          success: false,
+          error: "Este endereço de e-mail já está cadastrado na plataforma.",
+        };
       }
 
       // Caso a confirmação de e-mail esteja ativa no projeto do Supabase
@@ -184,6 +255,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       return { success: true, requiresEmailConfirmation };
     } catch (err) {
+      console.error("[UniGag Auth] Exceção inesperada no cadastro:", err);
       return { success: false, error: sanitizeAuthError((err as Error).message) };
     }
   }, [fetchStudentProfile]);

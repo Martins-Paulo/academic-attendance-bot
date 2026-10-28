@@ -6,18 +6,29 @@
 .env
 .env*
 *.env
+!.env.example
+!*.env.example
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
 backend/.env
 backend/.env.*
+!backend/.env.example
 frontend/.env
 frontend/.env.*
+!frontend/.env.example
 *.pem
 *.key
 *.cert
 *.pfx
+
+# WhatsApp, Evolution API & Temporary Auth artifacts (CRÍTICO)
+evolution_instances/
+*/evolution_instances/
+qrcode*.png
+qrcode*.html
+*.png.b64
 
 # Dependências e Módulos
 node_modules/

@@ -1,11 +1,11 @@
 """
 Rotina de agendamento e disparo proativo de lembretes de aula via WhatsApp.
-Executa verificações de horários para enviar enquetes interativas aos estudantes.
+Executa verificações de horários para enviar enquetes interativas aos estudantes reais.
 Integrado ao ciclo de vida (lifespan) assíncrono do FastAPI.
 """
 
 import asyncio
-from datetime import datetime, date, time
+from datetime import datetime, date
 from typing import Any, Dict, List, Optional, Set, Tuple
 from services import supabase_service
 from services.evolution_service import evolution_service
@@ -16,7 +16,6 @@ class AttendanceScheduler:
         self._is_running = False
         self._notified_today: Set[Tuple[str, int, int]] = set()  # (date_str, subject_id, student_id)
         self._current_date_str = date.today().isoformat()
-        self.default_student_phone = "5511999998888"  # Telefone padrão de teste ou obtido via banco
 
     def start(self):
         """Ativa a flag de execução do scheduler."""
@@ -35,7 +34,10 @@ class AttendanceScheduler:
         """
         Envia uma enquete de presença interativa no WhatsApp do aluno.
         """
-        question = f"🎓 UniGag: Você esteve presente na aula de {subject_name} hoje?"
+        if not phone:
+            return False
+
+        question = f"🎓 UniGag: Você compareceu à aula de {subject_name} hoje?"
         options = [
             f"✅ Sim, estive presente ({subject_name})",
             f"❌ Não, faltei ({subject_name})",
@@ -52,12 +54,12 @@ class AttendanceScheduler:
 
     async def check_and_dispatch_reminders(
         self,
-        target_time: Optional[datetime] = None,
-        student_id: int = settings.DEFAULT_STUDENT_ID
+        target_time: Optional[datetime] = None
     ) -> int:
         """
-        Analisa a grade e horários do estudante e dispara enquetes para disciplinas cujo horário
-        de aula acabou de encerrar. Evita notificações repetidas no mesmo dia.
+        Analisa a grade dos estudantes reais cadastrados no Supabase com telefone ativo
+        e dispara enquetes para disciplinas cujo horário bate com o dia atual.
+        Evita notificações repetidas no mesmo dia para o mesmo estudante.
         """
         now = target_time or datetime.now()
         today_str = now.date().isoformat()
@@ -67,8 +69,21 @@ class AttendanceScheduler:
             self._notified_today.clear()
             self._current_date_str = today_str
 
-        subjects = supabase_service.get_student_subjects(student_id)
-        if not subjects:
+        # Busca estudantes cadastrados que possuam telefone registrado
+        students: List[Dict[str, Any]] = []
+        try:
+            res = (
+                supabase_service.supabase.table("students")
+                .select("id, name, phone")
+                .not_.is_("phone", "null")
+                .execute()
+            )
+            students = res.data or []
+        except Exception as err:
+            print(f"⚠️ [SCHEDULER] Falha ao consultar estudantes cadastrados: {err}")
+            return 0
+
+        if not students:
             return 0
 
         # Mapeamento do dia da semana (0 = Segunda, ..., 6 = Domingo)
@@ -83,50 +98,54 @@ class AttendanceScheduler:
         }
         today_weekday = weekday_map.get(now.weekday(), "")
 
-        sent_count = 0
-        for sub in subjects:
-            sub_id = sub.get("id")
-            sub_name = sub.get("name")
-            if not sub_id or not sub_name:
+        total_dispatched = 0
+
+        for st in students:
+            st_id = st.get("id")
+            st_phone = (st.get("phone") or "").strip()
+            if not st_id or not st_phone:
                 continue
 
-            dedup_key = (today_str, sub_id, student_id)
-            if dedup_key in self._notified_today:
+            subjects = supabase_service.get_student_subjects(st_id)
+            if not subjects:
                 continue
 
-            # Verifica o cronograma da matéria (ex: "Segundas 19:00", ou janelas convencionais de aula)
-            schedule_str = (sub.get("schedule") or "").strip()
-            
-            # Se a disciplina possui dia configurado e bate com hoje (ou é chamada geral para matérias do dia)
-            is_scheduled_for_today = (
-                not schedule_str
-                or today_weekday.lower() in schedule_str.lower()
-            )
+            for sub in subjects:
+                sub_id = sub.get("id")
+                sub_name = sub.get("name")
+                if not sub_id or not sub_name:
+                    continue
 
-            # Janela de verificação de término de aula:
-            # - Em ambiente real, dispara no término de blocos (ex.: 12:00, 18:00, 21:00 ou conforme schedule)
-            # Para o scheduler ativo, se coincidir com o término ou teste manual, dispara:
-            if is_scheduled_for_today:
-                # Dispara a enquete
-                success = await self.send_attendance_check(
-                    phone=self.default_student_phone,
-                    subject_name=sub_name,
-                    subject_id=sub_id
+                dedup_key = (today_str, sub_id, st_id)
+                if dedup_key in self._notified_today:
+                    continue
+
+                schedule_str = (sub.get("schedule") or "").strip()
+                is_scheduled_for_today = (
+                    not schedule_str
+                    or today_weekday.lower() in schedule_str.lower()
                 )
-                if success:
-                    self._notified_today.add(dedup_key)
-                    sent_count += 1
-                    print(
-                        f"\033[1;36m[⏰ SCHEDULER]\033[0m Enquete de presença enviada para '{sub_name}' "
-                        f"(Aluno {student_id}, Telefone: {self.default_student_phone})."
-                    )
 
-        return sent_count
+                if is_scheduled_for_today:
+                    success = await self.send_attendance_check(
+                        phone=st_phone,
+                        subject_name=sub_name,
+                        subject_id=sub_id
+                    )
+                    if success:
+                        self._notified_today.add(dedup_key)
+                        total_dispatched += 1
+                        print(
+                            f"\033[1;36m[⏰ SCHEDULER]\033[0m Enquete de presença enviada para '{sub_name}' "
+                            f"(Aluno {st_id}, Telefone: {st_phone})."
+                        )
+
+        return total_dispatched
 
     async def run_periodic_checker(self, interval_seconds: int = 60):
         """
-        Loop infinito assíncrono executado em segundo plano no ciclo de vida do FastAPI.
-        Verifica periodicamente os horários para disparo de enquetes.
+        Loop assíncrono executado em segundo plano no ciclo de vida do FastAPI.
+        Verifica periodicamente os horários para disparo de enquetes aos estudantes reais.
         """
         self.start()
         print(f"\033[1;36m[⏰ SCHEDULER]\033[0m Agendador de aulas ativo (intervalo de checagem: {interval_seconds}s).")
@@ -147,12 +166,21 @@ class AttendanceScheduler:
     async def trigger_daily_reminders_for_student(
         self,
         phone: str,
-        student_id: int = settings.DEFAULT_STUDENT_ID
+        student_id: Optional[int] = None
     ) -> int:
         """
-        Dispara manualmente confirmações de presença para todas as matérias ativas.
+        Dispara manualmente confirmações de presença para as disciplinas reais do estudante.
         """
-        subjects = supabase_service.get_student_subjects(student_id)
+        resolved_student_id = student_id
+        if not resolved_student_id and phone:
+            st = supabase_service.get_student_by_phone(phone)
+            if st:
+                resolved_student_id = st.get("id")
+
+        if not resolved_student_id:
+            return 0
+
+        subjects = supabase_service.get_student_subjects(resolved_student_id)
         if not subjects:
             return 0
 

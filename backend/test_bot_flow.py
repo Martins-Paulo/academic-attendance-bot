@@ -1,7 +1,12 @@
 """
-Script de Teste e Simulação Local do Bot WhatsApp UniGag.
-Valida o fluxo ponta a ponta sem requerer o WhatsApp conectado:
-Payload mockado -> Parser de IA / Regex -> Inserção em attendances -> Geração da Resposta Formatada.
+Script de Teste e Simulação do Fluxo do Bot WhatsApp UniGag (Abordagem Adaptativa).
+Valida:
+1. Remetente NÃO cadastrado -> Boas-vindas neutras, link oficial e pergunta sobre nome/apelido
+2. Remetente NÃO cadastrado se apresentando -> Acolhimento amigável do nome e incentivo ao cadastro
+3. Remetente CADASTRADO enviando saudação ("Oi") -> Boas-vindas dinâmicas com as matérias reais da grade
+4. Remetente CADASTRADO registrando presença -> Confirmação precisa e métricas em tempo real
+5. Remetente CADASTRADO consultando faltas -> Saldo e margem de faltas da matéria
+6. Simulação HTTP via Webhook FastAPI (POST /webhook/whatsapp)
 """
 
 import asyncio
@@ -16,109 +21,220 @@ if str(current_dir) not in sys.path:
 
 from bot.dispatcher import dispatcher
 from services import supabase_service
-from webhook_server import app, extract_message_text
+from webhook_server import app
+from config import settings
 import httpx
 
 async def run_bot_flow_tests():
     print("=" * 75)
-    print("🤖 INICIANDO SIMULAÇÃO DE FLUXO DO BOT WHATSAPP UNIGAG")
+    print("🤖 INICIANDO SIMULAÇÃO DO BOT WHATSAPP UNIGAG (DESIGN ADAPTATIVO & NEUTRO)")
     print("=" * 75)
 
-    test_phone = "5511999998888"
-    student_id = 1
-    inserted_attendance_ids = []
+    registered_phone = "5511999990001"
+    unregistered_phone = "5511988887777"
+    test_student_id = 101
+
+    # Configuração de mock de estudante para ambiente de teste
+    mock_student = {
+        "id": test_student_id,
+        "name": "Paulo Cesar",
+        "preferred_name": "Paulo",
+        "phone": registered_phone,
+        "course": "Engenharia de Software",
+        "semester": 4
+    }
+
+    mock_subjects = [
+        {
+            "id": 10,
+            "student_id": test_student_id,
+            "name": "Banco de Dados",
+            "code": "INF0124",
+            "total_classes": 64,
+            "max_absences": 16
+        },
+        {
+            "id": 11,
+            "student_id": test_student_id,
+            "name": "Estruturas de Dados",
+            "code": "INF0123",
+            "total_classes": 64,
+            "max_absences": 16
+        }
+    ]
+
+    # Monkeypatch dos métodos de consulta para ambiente de teste isolado
+    orig_get_student_by_phone = supabase_service.get_student_by_phone
+    orig_get_student_subjects = supabase_service.get_student_subjects
+    orig_get_student = supabase_service.get_student
+    orig_update_student_tone = supabase_service.update_student_tone
+
+    def mock_get_student_by_phone(phone: str):
+        if phone and registered_phone in phone:
+            if not mock_student.get("bot_tone"):
+                mock_student["bot_tone"] = "queer"
+            return mock_student
+        return None
+
+    def mock_get_student_subjects(student_id: int):
+        if student_id == test_student_id:
+            return mock_subjects
+        return []
+
+    def mock_get_student(student_id: int):
+        if student_id == test_student_id:
+            if not mock_student.get("bot_tone"):
+                mock_student["bot_tone"] = "queer"
+            return mock_student
+        return None
+
+    def mock_update_student_tone(student_id: int, tone: str):
+        if student_id == test_student_id:
+            mock_student["bot_tone"] = tone
+            return True
+        return False
+
+    supabase_service.get_student_by_phone = mock_get_student_by_phone
+    supabase_service.get_student_subjects = mock_get_student_subjects
+    supabase_service.get_student = mock_get_student
+    supabase_service.update_student_tone = mock_update_student_tone
 
     try:
         # ----------------------------------------------------------------------
-        # CENÁRIO 1: Registro de Presença em Linguagem Natural
+        # CENÁRIO 1: Usuário NÃO Cadastrado (Onboarding Neutro e Amigável)
         # ----------------------------------------------------------------------
-        msg_1 = "Tive aula de Estruturas de Dados hoje e compareci"
-        print(f"\n[Cenário 1/5] 📩 Mensagem recebida: \"{msg_1}\"")
-        
-        reply_1 = await dispatcher.handle_message(
-            phone=test_phone,
-            message_text=msg_1,
-            student_id=student_id
+        print("\n[Cenário 1/6] 📩 Remetente NÃO cadastrado enviando mensagem inicial...")
+        reply_unreg = await dispatcher.handle_message(
+            phone=unregistered_phone,
+            message_text="Oi, como funciona o UniGag?"
         )
         print("  💬 Resposta do Bot UniGag:")
-        for line in reply_1.split("\n"):
+        for line in reply_unreg.split("\n"):
             print(f"    {line}")
 
-        assert "Presença confirmada" in reply_1, "Falha ao confirmar presença"
-        assert "Estruturas de Dados" in reply_1, "Disciplina incorreta na confirmação"
-        print("  ✅ Cenário 1 aprovado com sucesso!")
+        assert "Boas-vindas ao UniGag" in reply_unreg, "Deve conter saudação de boas-vindas"
+        assert settings.FRONTEND_URL in reply_unreg, "Deve conter o link do frontend oficial"
+        assert "como prefere que eu te chame" in reply_unreg, "Deve perguntar como o aluno prefere ser chamado"
+        assert "diva" not in reply_unreg.lower() and "mona" not in reply_unreg.lower(), "Não deve conter vocativos divisivos"
+        print("  ✅ Cenário 1 (Onboarding Neutro) aprovado com sucesso!")
 
         # ----------------------------------------------------------------------
-        # CENÁRIO 2: Registro de Falta com Verificação de Limites
+        # CENÁRIO 2: Usuário NÃO Cadastrado Informando Apelido
         # ----------------------------------------------------------------------
-        msg_2 = "Faltei na aula de Estruturas de Dados hoje porque perdi o ônibus"
-        print(f"\n[Cenário 2/5] 📩 Mensagem recebida: \"{msg_2}\"")
-
-        reply_2 = await dispatcher.handle_message(
-            phone=test_phone,
-            message_text=msg_2,
-            student_id=student_id
+        print("\n[Cenário 2/6] 📩 Remetente NÃO cadastrado informando apelido/nome...")
+        reply_name = await dispatcher.handle_message(
+            phone=unregistered_phone,
+            message_text="Pode me chamar de Paulo"
         )
         print("  💬 Resposta do Bot UniGag:")
-        for line in reply_2.split("\n"):
+        for line in reply_name.split("\n"):
             print(f"    {line}")
 
-        assert "Falta registrada" in reply_2, "Falha ao registrar falta"
-        assert "Estruturas de Dados" in reply_2, "Disciplina incorreta no registro de falta"
-        print("  ✅ Cenário 2 aprovado com sucesso!")
+        assert "Paulo" in reply_name, "Deve acolher o nome informado"
+        assert settings.FRONTEND_URL in reply_name, "Deve direcionar para criar a conta"
+        print("  ✅ Cenário 2 (Captura de Apelido Não Cadastrado) aprovado com sucesso!")
 
         # ----------------------------------------------------------------------
-        # CENÁRIO 3: Consulta de Margem e Limite de Faltas
+        # CENÁRIO 3: Usuário CADASTRADO (Boas-vindas Dinâmicas com Grade Real)
         # ----------------------------------------------------------------------
-        msg_3 = "Quantas faltas ainda posso ter em ED?"
-        print(f"\n[Cenário 3/5] 📩 Mensagem recebida: \"{msg_3}\"")
-
-        reply_3 = await dispatcher.handle_message(
-            phone=test_phone,
-            message_text=msg_3,
-            student_id=student_id
+        print("\n[Cenário 3/6] 📩 Remetente CADASTRADO enviando saudação ('Oi')...")
+        reply_reg = await dispatcher.handle_message(
+            phone=registered_phone,
+            message_text="Oi"
         )
         print("  💬 Resposta do Bot UniGag:")
-        for line in reply_3.split("\n"):
+        for line in reply_reg.split("\n"):
             print(f"    {line}")
 
-        assert "Status de Frequência" in reply_3 or "faltas" in reply_3, "Falha na consulta de faltas"
-        print("  ✅ Cenário 3 aprovado com sucesso!")
+        assert "Que bom te ter no UniGag" in reply_reg, "Deve dar boas-vindas calorosas"
+        assert "Banco de Dados" in reply_reg, "Deve listar a matéria real 1 da grade"
+        assert "Estruturas de Dados" in reply_reg, "Deve listar a matéria real 2 da grade"
+        assert "Tô na aula de" in reply_reg, "Deve dar exemplos de comandos com a própria grade"
+        print("  ✅ Cenário 3 (Saudação Dinâmica com Grade Real) aprovado com sucesso!")
 
         # ----------------------------------------------------------------------
-        # CENÁRIO 4: Consulta de Próximas Entregas e Provas
+        # CENÁRIO 4: Usuário CADASTRADO Registrando Presença
         # ----------------------------------------------------------------------
-        msg_4 = "Quais são minhas próximas entregas da semana?"
-        print(f"\n[Cenário 4/5] 📩 Mensagem recebida: \"{msg_4}\"")
-
-        reply_4 = await dispatcher.handle_message(
-            phone=test_phone,
-            message_text=msg_4,
-            student_id=student_id
+        print("\n[Cenário 4/6] 📩 Remetente CADASTRADO registrando presença em linguagem natural...")
+        reply_att = await dispatcher.handle_message(
+            phone=registered_phone,
+            message_text="Tô na aula de Banco de Dados"
         )
         print("  💬 Resposta do Bot UniGag:")
-        for line in reply_4.split("\n"):
+        for line in reply_att.split("\n"):
             print(f"    {line}")
 
-        assert "Entregas" in reply_4 or "não possui" in reply_4, "Falha na consulta de entregas"
-        print("  ✅ Cenário 4 aprovado com sucesso!")
+        assert "Presença confirmada" in reply_att, "Deve confirmar presença"
+        assert "Banco de Dados" in reply_att, "Deve indicar a disciplina correta"
+        print("  ✅ Cenário 4 (Registro de Presença) aprovado com sucesso!")
 
         # ----------------------------------------------------------------------
-        # CENÁRIO 5: Simulação de Requisição HTTP no Webhook FastAPI
+        # CENÁRIO 5: Usuário CADASTRADO Consultando Faltas
         # ----------------------------------------------------------------------
-        print("\n[Cenário 5/5] 🌐 Simulando Webhook HTTP da Evolution API (POST /webhook/whatsapp)...")
+        print("\n[Cenário 5/6] 📩 Remetente CADASTRADO consultando limite de faltas...")
+        reply_lim = await dispatcher.handle_message(
+            phone=registered_phone,
+            message_text="Quantas faltas ainda posso ter em BD?"
+        )
+        print("  💬 Resposta do Bot UniGag:")
+        for line in reply_lim.split("\n"):
+            print(f"    {line}")
+
+        assert "Status de Frequência" in reply_lim or "Banco de Dados" in reply_lim, "Deve trazer status de faltas"
+        print("  ✅ Cenário 5 (Consulta de Faltas) aprovado com sucesso!")
+
+        # ----------------------------------------------------------------------
+        # CENÁRIO 6: Usuário CADASTRADO Alterando Preferência de Tom (SET_TONE)
+        # ----------------------------------------------------------------------
+        print("\n[Cenário 6/7] 🎭 Remetente CADASTRADO alterando tom para FORMAL/NEUTRO...")
+        reply_tone_formal = await dispatcher.handle_message(
+            phone=registered_phone,
+            message_text="Prefiro sem gírias, seja formal comigo"
+        )
+        print("  💬 Resposta do Bot UniGag:")
+        for line in reply_tone_formal.split("\n"):
+            print(f"    {line}")
+
+        assert "formal" in reply_tone_formal.lower() or "sem gírias" in reply_tone_formal.lower() or "sem girias" in reply_tone_formal.lower(), "Deve confirmar tom formal"
+        assert mock_student.get("bot_tone") == "neutral", "bot_tone deve ter sido atualizado para 'neutral'"
+
+        # Mensagem seguinte deve estar no tom formal sem gírias
+        reply_att_formal = await dispatcher.handle_message(
+            phone=registered_phone,
+            message_text="Tô na aula de Banco de Dados"
+        )
+        assert "diva" not in reply_att_formal.lower() and "mona" not in reply_att_formal.lower(), "Tom formal não deve conter gírias"
+        print("  ✅ Mudança para tom formal validada com sucesso!")
+
+        print("\n[Cenário 6/7 b] 💅 Remetente CADASTRADO retornando tom para QUEER/DESCONTRAÍDO...")
+        reply_tone_queer = await dispatcher.handle_message(
+            phone=registered_phone,
+            message_text="Pode usar gírias agora, modo diva"
+        )
+        print("  💬 Resposta do Bot UniGag:")
+        for line in reply_tone_queer.split("\n"):
+            print(f"    {line}")
+
+        assert "diva" in reply_tone_queer.lower() or "mona" in reply_tone_queer.lower() or "diploma" in reply_tone_queer.lower(), "Deve confirmar tom queer com energia"
+        assert mock_student.get("bot_tone") == "queer", "bot_tone deve ter sido atualizado para 'queer'"
+        print("  ✅ Mudança para tom queer validada com sucesso!")
+
+        # ----------------------------------------------------------------------
+        # CENÁRIO 7: Simulação de Requisição HTTP no Webhook FastAPI
+        # ----------------------------------------------------------------------
+        print("\n[Cenário 7/7] 🌐 Simulando Webhook HTTP da Evolution API (POST /webhook/whatsapp)...")
         evolution_payload = {
             "event": "messages.upsert",
             "instance": "unigag",
             "data": {
                 "key": {
-                    "remoteJid": f"{test_phone}@s.whatsapp.net",
+                    "remoteJid": f"{registered_phone}@s.whatsapp.net",
                     "fromMe": False,
-                    "id": "MSG_SIMULATED_001"
+                    "id": "MSG_SIM_100"
                 },
-                "pushName": "Estudante UniGag",
+                "pushName": "Paulo Cesar",
                 "message": {
-                    "conversation": "Tô na aula de Estruturas de Dados"
+                    "conversation": "Oi"
                 },
                 "messageType": "conversation"
             }
@@ -126,47 +242,26 @@ async def run_bot_flow_tests():
 
         transport = httpx.ASGITransport(app=app)
         async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
-            # 1. Health check
             res_health = await client.get("/health")
-            assert res_health.status_code == 200, f"Health check falhou: {res_health.status_code}"
+            assert res_health.status_code == 200
             print(f"  ✅ Health check OK: {res_health.json()}")
 
-            # 2. Webhook post
             res_webhook = await client.post("/webhook/whatsapp", json=evolution_payload)
-            assert res_webhook.status_code == 200, f"Webhook falhou: {res_webhook.status_code}"
-            webhook_data = res_webhook.json()
-            assert webhook_data.get("status") == "queued", "Status de enfileiramento incorreto"
-            print(f"  ✅ Webhook Evolution API aceito com sucesso: {webhook_data}")
-
-    except Exception as e:
-        print(f"\n❌ ERRO NA SIMULAÇÃO DO BOT: {e}")
-        import traceback
-        traceback.print_exc()
-        raise e
+            assert res_webhook.status_code == 200
+            data = res_webhook.json()
+            assert data.get("status") == "queued"
+            assert data.get("remoteJid") == f"{registered_phone}@s.whatsapp.net"
+            print(f"  ✅ Webhook Evolution API aceito com sucesso: {data}")
 
     finally:
-        # ----------------------------------------------------------------------
-        # LIMPEZA DOS REGISTROS DE TESTE
-        # ----------------------------------------------------------------------
-        print("\n🧹 Executando limpeza dos registros temporários gerados na simulação...")
-        try:
-            # Busca matéria Estruturas de Dados
-            sub = supabase_service.find_subject_by_query("estruturas de dados", student_id)
-            if sub:
-                # Remove presenças criadas hoje para o aluno no teste
-                today_str = supabase_service.date.today().isoformat()
-                supabase_service.supabase.table("attendances") \
-                    .delete() \
-                    .eq("subject_id", sub["id"]) \
-                    .eq("student_id", student_id) \
-                    .eq("date", today_str) \
-                    .execute()
-                print("  ✅ Registros temporários de hoje limpos com sucesso.")
-        except Exception as clean_err:
-            print(f"  ⚠️ Aviso na limpeza: {clean_err}")
+        # Restaura métodos originais
+        supabase_service.get_student_by_phone = orig_get_student_by_phone
+        supabase_service.get_student_subjects = orig_get_student_subjects
+        supabase_service.get_student = orig_get_student
+        supabase_service.update_student_tone = orig_update_student_tone
 
     print("\n" + "=" * 75)
-    print("🎉 TODAS AS SIMULAÇÕES DO BOT WHATSAPP FORAM CONCLUÍDAS COM SUCESSO!")
+    print("🎉 TODOS OS 7 CENÁRIOS DO BOT WHATSAPP ADAPTATIVO & TOM FORAM APROVADOS!")
     print("=" * 75)
 
 if __name__ == "__main__":
